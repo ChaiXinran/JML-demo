@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "status": "teacher_approved",
+  "method": "followUser",
+  "java_signature": "public void followUser(int id1, int id2);",
+  "source": "requirement.md",
+  "obligations": {
+    "requires": [
+      {
+        "id": "NORMAL_CONDITION",
+        "expression": "containsUser(id1) && containsUser(id2) && id1 != id2 && !getUser(id1).isFollowing(getUser(id2))"
+      }
+    ],
+    "ensures": [
+      {
+        "id": "FORWARD_POSTCONDITION",
+        "expression": "getUser(id1).isFollowing(getUser(id2))"
+      },
+      {
+        "id": "INVERSE_POSTCONDITION",
+        "expression": "getUser(id2).containsFollower(getUser(id1))"
+      }
+    ],
+    "output_ensures": [
+      {
+        "id": "SUCCESS_OUTPUT",
+        "expression": "(* output-> \"follow_user succeeded\" *)"
+      }
+    ],
+    "assignable": ["users[*]", "\\nothing"],
+    "signals": [
+      {
+        "id": "FIRST_USER_MISSING",
+        "exception": "UserIdNotFoundException",
+        "priority": 1,
+        "expression": "!containsUser(id1)"
+      },
+      {
+        "id": "SECOND_USER_MISSING",
+        "exception": "UserIdNotFoundException",
+        "priority": 2,
+        "expression": "containsUser(id1) && !containsUser(id2)"
+      },
+      {
+        "id": "SELF_FOLLOW",
+        "exception": "SelfSubscriptionException",
+        "priority": 3,
+        "expression": "containsUser(id1) && containsUser(id2) && id1 == id2"
+      },
+      {
+        "id": "DUPLICATE_FOLLOW",
+        "exception": "DuplicateSubscriptionException",
+        "priority": 4,
+        "expression": "containsUser(id1) && containsUser(id2) && id1 != id2 && getUser(id1).isFollowing(getUser(id2))"
+      }
+    ]
+  }
+}

@@ -116,6 +116,27 @@ python -m hw9_agent exercise `
 `/template`、`/requirement`、`/mode hint|review` 和 `/quit`。`hint` 只指出一个优先问题；
 `review` 可指出涉及的填空位置和抽象反例形状，但两者均不提供完整答案，也不改变判定结果。
 
+## NL–JML–Java 双一致性检测
+
+课程组审核 `requirement_ir.json` 后，可同时检查“学生 JML 是否表达题意”和“学生 Java
+是否满足其本人 JML”：
+
+```powershell
+python -m hw9_agent consistency `
+  --requirement-ir "exercises\follow_user\requirement_ir.json" `
+  --student-jml "学生提交\NetworkInterface.java" `
+  --student-java "学生提交\Network.java" `
+  --openjml "wsl:/home/ranye/.local/openjml-21.0.27/openjml" `
+  --openjml-arg=--method=followUser
+```
+
+结果分别位于 `nl_jml` 和 `jml_java`，不会因为 Java 满足一份错误或过弱的学生规格
+而给出整体通过。OpenJML 不可用、超时或需求 IR 未批准时返回 `UNKNOWN`。
+
+`--openjml` 接受原生 Windows 可执行文件，也接受 `wsl:/absolute/linux/path`
+形式的 WSL 安装。Agent 会自动把学生 Java 的 Windows 路径转换为
+`/mnt/<drive>/...`。
+
 教师 rubric 位于 `staff/rubrics/`，正确填写样例也只保留在 `staff/`。学生练习服务不会
 读取、返回或发送这些资产；正式评分必须由独立的确定性规格验证器产生。
 

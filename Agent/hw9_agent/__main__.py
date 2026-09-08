@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -73,6 +74,16 @@ def main() -> None:
     exercise_parser.add_argument("--offline", action="store_true", help="run deterministic checks only")
     exercise_parser.add_argument("--model", default=os.environ.get("DEEPSEEK_MODEL", "deepseek-chat"))
     exercise_parser.add_argument("--base-url", default=os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com"))
+    consistency_parser = sub.add_parser(
+        "consistency", help="check course NL vs student JML and student JML vs Java"
+    )
+    consistency_parser.add_argument("--requirement-ir", required=True)
+    consistency_parser.add_argument("--student-jml", required=True)
+    consistency_parser.add_argument("--student-java", required=True)
+    consistency_parser.add_argument("--method")
+    consistency_parser.add_argument("--openjml", default="openjml")
+    consistency_parser.add_argument("--timeout", type=int, default=60)
+    consistency_parser.add_argument("--openjml-arg", action="append", default=[])
     web_parser = sub.add_parser("web", help="start the local JML learning web interface")
     web_parser.add_argument("--exercise-dir", required=True)
     web_parser.add_argument("--host", default="127.0.0.1")
@@ -80,6 +91,27 @@ def main() -> None:
     web_parser.add_argument("--model", default=os.environ.get("DEEPSEEK_MODEL", "deepseek-chat"))
     web_parser.add_argument("--base-url", default=os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com"))
     args = parser.parse_args()
+
+    if args.command == "consistency":
+        entry = (
+            Path(__file__).resolve().parents[2]
+            / "judge-2027" / "unit3" / "spec_judge" / "consistency_judge.py"
+        )
+        command = [
+            sys.executable,
+            str(entry),
+            "--requirement-ir", args.requirement_ir,
+            "--student-jml", args.student_jml,
+            "--student-java", args.student_java,
+            "--openjml", args.openjml,
+            "--timeout", str(args.timeout),
+        ]
+        if args.method:
+            command.extend(("--method", args.method))
+        for value in args.openjml_arg:
+            command.append(f"--openjml-arg={value}")
+        completed = subprocess.run(command, check=False)
+        raise SystemExit(completed.returncode)
 
     if args.command == "template":
         build_template_file(

@@ -9,7 +9,7 @@
    5. 每项评测义务的检测规则、诊断位置、错误类别和不泄题的修正方向；
    6. 正确 JML 与每类典型错误 JML 的回归测试。
 
-   Profile 以 Python 代码实现，不以助教手写 JSON/YAML 实现。完整官方 JML 仍是唯一行为权威；Profile 只定义有限评测范围内“状态和接口调用如何解释”。普通助教只写完整 JML、`requirement.md` 和 `blank_plan.json`；Profile 由工具开发者在出现新题目背景、新接口语义或新 JML 构造时实现或扩充。
+   Profile 以 Python 代码实现，不以助教手写 JSON/YAML 实现。课程组批准的 Requirement IR 是 NL–JML 检测的行为权威；完整官方 JML 是辅助回归 oracle，用于在发布前发现 Gold JML 与 Requirement IR 的偏差。Profile 只定义有限评测范围内“状态和接口调用如何解释”。普通助教维护完整 JML、`requirement.md`、经审批的 `requirement_ir.json` 和 `blank_plan.json`；Profile 由工具开发者在出现新题目背景、新接口语义或新 JML 构造时实现或扩充。
 
    建议目录结构：
 

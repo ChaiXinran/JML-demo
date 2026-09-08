@@ -4,6 +4,27 @@
 
 - `semantic_check.py`：当前的统一语义评测入口。它比较学生填写后的 JML 与服务器端完整参考 JML，不调用 LLM，也不执行学生 Java。
 - `spec_judge.py`：早期 weak/mid 原型，仅保留用于回归和对比，不是正式评分入口。
+- `consistency_judge.py`：双一致性入口，分别检查课程需求–学生 JML 和学生 JML–Java。
+
+## 双一致性检测
+
+课程组先把自然语言需求审核为 `teacher_approved` 的 Requirement IR（示例见
+`Agent/exercises/follow_user/requirement_ir.json`）。学生 Java 文件应包含其本人编写的
+JML，或由 OpenJML 的规格路径配置关联到该 JML。执行：
+
+```powershell
+python consistency_judge.py `
+  --requirement-ir "..\..\..\Agent\exercises\follow_user\requirement_ir.json" `
+  --student-jml "学生提交\NetworkInterface.java" `
+  --student-java "学生提交\Network.java" `
+  --openjml "wsl:/home/ranye/.local/openjml-21.0.27/openjml" `
+  --openjml-arg=--method=followUser
+```
+
+输出始终保留两个独立结果：`nl_jml`、`jml_java`，以及由二者组合得到的
+`overall`。若 Requirement IR 未批准、OpenJML 不可用或验证超时，对应链返回
+`UNKNOWN`，不会把“没有完成验证”误报成通过或失败。现有 Gold JML 比较器仍可作为
+课程组回归检查，但不再充当自然语言需求的唯一参照。
 
 ## 统一评测
 
