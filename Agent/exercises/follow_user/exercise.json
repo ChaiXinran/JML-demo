@@ -35,5 +35,37 @@
   "allowed_symbols": [
     "containsUser", "getUser", "isFollowing", "containsFollower", "users",
     "UserIdNotFoundException", "SelfSubscriptionException", "DuplicateSubscriptionException"
+  ],
+  "consistency_demo_cases": [
+    {
+      "id": "all-correct",
+      "label": "案例 A：规格正确，代码正确",
+      "description": "两条一致性链均应通过。",
+      "jml_excerpt": "ensures getUser(id1).isFollowing(getUser(id2));\nensures getUser(id2).containsFollower(getUser(id1));",
+      "java_excerpt": "fun.addFollowing(star);\nstar.addFollower(fun);",
+      "expected": "C1 PASS · C2 PASS",
+      "student_jml": "staff/fixtures/follow_user_complete.java",
+      "implementation_method": "followUser"
+    },
+    {
+      "id": "wrong-spec",
+      "label": "案例 B：规格方向写反，但代码满足该规格",
+      "description": "展示为什么不能只检查 Java 是否满足学生自己的 JML。",
+      "jml_excerpt": "ensures getUser(id2).isFollowing(getUser(id1));\nensures getUser(id1).containsFollower(getUser(id2));",
+      "java_excerpt": "star.addFollowing(fun);\nfun.addFollower(star);",
+      "expected": "C1 FAIL · C2 PASS",
+      "student_jml": "exercises/follow_user/samples/wrong-relation-direction.java",
+      "implementation_method": "followUserWrongSpec"
+    },
+    {
+      "id": "wrong-code",
+      "label": "案例 C：规格正确，但代码漏更新粉丝关系",
+      "description": "NL–JML 通过，OpenJML 应报告后置条件失败。",
+      "jml_excerpt": "ensures getUser(id1).isFollowing(getUser(id2));\nensures getUser(id2).containsFollower(getUser(id1));",
+      "java_excerpt": "fun.addFollowing(star);\n// 缺少 star.addFollower(fun);",
+      "expected": "C1 PASS · C2 FAIL",
+      "student_jml": "staff/fixtures/follow_user_complete.java",
+      "implementation_method": "followUserBroken"
+    }
   ]
 }

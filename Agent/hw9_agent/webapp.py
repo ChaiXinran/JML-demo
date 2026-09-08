@@ -137,6 +137,13 @@ class ExerciseWebApp:
         self.semantic_entry = (
             project_root.parent / "judge-2027" / "unit3" / "spec_judge" / "semantic_check.py"
         )
+        self.consistency_entry = (
+            project_root.parent / "judge-2027" / "unit3" / "spec_judge" / "consistency_judge.py"
+        )
+        self.consistency_demo_java = (
+            project_root.parent / "judge-2027" / "unit3" / "spec_judge"
+            / "examples" / "FollowUserEscDemo.java"
+        )
 
     def public_exercise(self) -> dict[str, Any]:
         samples = []
@@ -158,6 +165,49 @@ class ExerciseWebApp:
             "requirement": self.bundle.requirement,
             "template": self.bundle.template,
             "samples": samples,
+            "consistency_demo_cases": [
+                {key: item[key] for key in (
+                    "id", "label", "description", "jml_excerpt", "java_excerpt", "expected",
+                )}
+                for item in self.bundle.config.get("consistency_demo_cases", [])
+            ],
+        }
+
+    def demo_consistency(self, case_id: str) -> dict[str, Any]:
+        """Run one server-owned demo without accepting arbitrary file paths."""
+        cases = {item["id"]: item for item in self.bundle.config.get("consistency_demo_cases", [])}
+        case = cases.get(case_id)
+        if case is None:
+            raise ValueError("未知的双一致性演示案例")
+        requirement_ir = self.bundle.directory / "requirement_ir.json"
+        student_jml = self.project_root / case["student_jml"]
+        assets = (self.consistency_entry, self.consistency_demo_java, requirement_ir, student_jml)
+        if not all(path.is_file() for path in assets):
+            raise ValueError("双一致性演示资产不完整")
+        completed = subprocess.run(
+            [
+                sys.executable, str(self.consistency_entry),
+                "--requirement-ir", str(requirement_ir),
+                "--student-jml", str(student_jml),
+                "--student-java", str(self.consistency_demo_java),
+                "--openjml", "wsl:/home/ranye/.local/openjml-21.0.27/openjml",
+                f"--openjml-arg=--method={case['implementation_method']}",
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=90,
+            check=False,
+        )
+        try:
+            result = json.loads(completed.stdout)
+        except json.JSONDecodeError as error:
+            raise ValueError(completed.stderr.strip() or "双一致性评测未返回有效结果") from error
+        return {
+            "case": {key: case[key] for key in (
+                "id", "label", "description", "jml_excerpt", "java_excerpt", "expected",
+            )},
+            "result": result,
         }
 
     def review(self, data: dict[str, Any]) -> dict[str, Any]:
@@ -296,6 +346,9 @@ def make_handler(app: ExerciseWebApp):
                     return
                 if self.path == "/api/review":
                     self._json(app.review(data))
+                    return
+                if self.path == "/api/demo-consistency":
+                    self._json(app.demo_consistency(str(data.get("case_id", ""))))
                     return
                 self._json({"error": "not found"}, HTTPStatus.NOT_FOUND)
             except (ValueError, json.JSONDecodeError) as exc:

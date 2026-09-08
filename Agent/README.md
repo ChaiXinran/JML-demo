@@ -118,6 +118,16 @@ python -m hw9_agent exercise `
 
 ## NL–JML–Java 双一致性检测
 
+教师演示无需拼接路径或准备提交文件。在仓库根目录运行：
+
+```powershell
+python demo.py
+```
+
+浏览器会打开内置的三个案例：全部正确、规格方向错误但代码满足该错误规格、规格正确但
+Java 漏更新反向关系。点击“运行双检测”即可展示两个 Judge 和综合结论，不需要配置
+DeepSeek API Key。
+
 课程组审核 `requirement_ir.json` 后，可同时检查“学生 JML 是否表达题意”和“学生 Java
 是否满足其本人 JML”：
 

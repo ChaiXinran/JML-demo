@@ -167,6 +167,22 @@ class AgentTest(unittest.TestCase):
         self.assertEqual("guided", payload["feedback_contract"]["hint"]["level"])
         self.assertIn("template", payload)
 
+    def test_consistency_demo_exposes_labels_but_not_server_paths(self):
+        project_root = Path(__file__).resolve().parent.parent
+        app = ExerciseWebApp(
+            project_root=project_root,
+            exercise_dir=project_root / "exercises" / "follow_user",
+            model="deepseek-chat",
+            base_url="https://api.deepseek.com",
+        )
+        cases = app.public_exercise()["consistency_demo_cases"]
+        self.assertEqual(3, len(cases))
+        self.assertEqual(
+            {"id", "label", "description", "jml_excerpt", "java_excerpt", "expected"},
+            set(cases[0]),
+        )
+        self.assertNotIn("student_jml", json.dumps(cases))
+
     def test_web_uses_deterministic_semantic_judge_without_exposing_reference(self):
         project_root = Path(__file__).resolve().parent.parent
         app = ExerciseWebApp(

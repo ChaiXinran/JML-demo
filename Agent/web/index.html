@@ -6,6 +6,7 @@
   <title>HW9 · JML 规格学习助手</title>
   <meta name="description" content="从自然语言需求出发，填写 JML，并获得可解释的规格反馈。">
   <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/demo.css">
 </head>
 <body>
   <header class="topbar">
@@ -50,6 +51,34 @@
       <div id="checking" class="checking hidden"><span></span><span></span><span></span><p>正在核对需求、接口与规格…</p></div>
       <div id="feedback-content" class="feedback-content hidden"></div>
       <div id="history" class="history"></div>
+    </section>
+
+    <section class="panel demo-box">
+      <div class="demo-heading">
+        <div>
+          <span class="eyebrow">04 · VERIFY BOTH CHAINS</span>
+          <h2>双一致性案例工作台</h2>
+          <p>先阅读学生的 JML 与 Java，再运行两个独立 Judge。</p>
+        </div>
+        <div class="demo-controls">
+          <select id="consistency-case" aria-label="双一致性演示案例"></select>
+          <button id="consistency-button" class="primary-button" type="button">运行双检测</button>
+        </div>
+      </div>
+      <div id="case-description" class="case-description"></div>
+      <div class="demo-workbench">
+        <article class="code-card">
+          <div><span>学生 JML · 核心语义</span><span id="case-expected"></span></div>
+          <pre><code id="case-jml"></code></pre>
+        </article>
+        <article class="code-card">
+          <div><span>学生 Java · 核心状态更新</span><span>followUser</span></div>
+          <pre><code id="case-java"></code></pre>
+        </article>
+        <section id="consistency-result" class="result-stage">
+          <div class="result-placeholder">选择案例后点击“运行双检测”</div>
+        </section>
+      </div>
     </section>
   </main>
   <script src="/app.js" defer></script>
