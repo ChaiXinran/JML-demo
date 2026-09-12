@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "fixtures": {
+    "empty": {"users": [], "following": [], "followers": []},
+    "only_1": {"users": [1], "following": [], "followers": []},
+    "only_2": {"users": [2], "following": [], "followers": []},
+    "two_users": {"users": [1, 2], "following": [], "followers": []},
+    "steady": {
+      "users": [1, 2, 3],
+      "following": [[3, 1]],
+      "followers": [[1, 3]]
+    }
+  },
+  "points": [
+    {"id": "normal", "kind": "pre", "args": {"id1": 1, "id2": 2}, "pre": {"use": "steady"}},
+    {"id": "both_missing", "kind": "pre", "args": {"id1": 1, "id2": 2}, "pre": {"use": "empty"}},
+    {"id": "first_missing", "kind": "pre", "args": {"id1": 1, "id2": 2}, "pre": {"use": "only_2"}},
+    {"id": "second_missing", "kind": "pre", "args": {"id1": 1, "id2": 2}, "pre": {"use": "only_1"}},
+    {"id": "missing_same_id", "kind": "pre", "args": {"id1": 1, "id2": 1}, "pre": {"use": "empty"}},
+    {"id": "self_follow", "kind": "pre", "args": {"id1": 1, "id2": 1}, "pre": {"use": "only_1"}},
+    {
+      "id": "self_already_following",
+      "kind": "pre",
+      "args": {"id1": 1, "id2": 1},
+      "pre": {"users": [1], "following": [[1, 1]], "followers": [[1, 1]]}
+    },
+    {
+      "id": "duplicate_follow",
+      "kind": "pre",
+      "args": {"id1": 1, "id2": 2},
+      "pre": {"users": [1, 2], "following": [[1, 2]], "followers": [[2, 1]]}
+    },
+    {"id": "normal_minimal", "kind": "pre", "args": {"id1": 1, "id2": 2}, "pre": {"use": "two_users"}},
+    {
+      "id": "reverse_after_success",
+      "kind": "post",
+      "args": {"id1": 1, "id2": 2},
+      "pre": {"users": [1, 2], "following": [[1, 2]], "followers": [[2, 1]]},
+      "post": {
+        "copy": "pre",
+        "add": {"following": [[2, 1]], "followers": [[1, 2]]}
+      }
+    }
+  ],
+  "generators": [
+    {
+      "id": "follow_outcomes",
+      "mode": "mutations",
+      "kind": "post",
+      "args": {"id1": [1], "id2": [2]},
+      "pre": [{"use": "steady"}],
+      "rule": "follow_pair",
+      "variants": ["correct", "omit_inverse", "omit_forward", "reverse_direction"]
+    }
+  ]
+}

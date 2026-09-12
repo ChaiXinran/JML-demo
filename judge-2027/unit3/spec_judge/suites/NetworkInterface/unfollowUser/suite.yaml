@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "name": "NetworkInterface.unfollowUser",
+  "profile": "network_v1",
+  "method": "unfollowUser",
+  "parameters": {"id1": "int", "id2": "int"},
+  "contract_shape": {"requires": 1, "ensures": 2, "signals": 0},
+  "grading": {
+    "applicability": 30,
+    "postcondition": 60,
+    "exceptions": 0,
+    "locked": 10
+  },
+  "solver": {"mode": "off"},
+  "reference": "reference.java",
+  "points": "points.yaml"
+}

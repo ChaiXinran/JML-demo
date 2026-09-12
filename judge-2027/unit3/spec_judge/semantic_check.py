@@ -7,6 +7,10 @@ import json
 import sys
 from pathlib import Path
 
+from core.profile import ProfileError
+from core.suite import load_suite
+from profiles.network_v1 import DEFAULT_PROFILE
+from profiles.registry import PROFILES
 from semantic_judge import SpecError, evaluate_files
 
 
@@ -15,15 +19,29 @@ def main() -> int:
         sys.stdout.reconfigure(encoding="utf-8")
     if hasattr(sys.stderr, "reconfigure"):
         sys.stderr.reconfigure(encoding="utf-8")
-    parser = argparse.ArgumentParser(description="Unit 3 followUser 统一 JML 语义评测")
+    parser = argparse.ArgumentParser(description="Unit 3 统一 JML 语义一致性评测")
     parser.add_argument("java_source", type=Path, help="学生填写后的 Java 接口文件")
-    parser.add_argument("--reference", type=Path, required=True, help="服务器端完整参考 JML 接口")
-    parser.add_argument("--method", default="followUser", help="要评测的方法")
+    parser.add_argument("--suite", type=Path, help="方法 suite 配置；包含参考 JML、Profile 和测试点")
+    parser.add_argument("--reference", type=Path, help="兼容模式：服务器端完整参考 JML 接口")
+    parser.add_argument("--method", help="兼容模式：要评测的方法，默认 followUser")
     parser.add_argument("--json", action="store_true", help="输出结构化诊断 JSON")
     args = parser.parse_args()
     try:
-        result = evaluate_files(args.reference, args.java_source, args.method)
-    except (OSError, SpecError) as error:
+        if args.suite:
+            if args.reference or args.method:
+                raise ProfileError("使用 --suite 时不要再传 --reference 或 --method")
+            suite = load_suite(args.suite, PROFILES)
+            reference = suite.reference
+            method = suite.method
+            profile = suite.profile
+        else:
+            if args.reference is None:
+                raise ProfileError("必须提供 --suite，或使用兼容模式的 --reference")
+            reference = args.reference
+            method = args.method or "followUser"
+            profile = DEFAULT_PROFILE
+        result = evaluate_files(reference, args.java_source, method, profile)
+    except (OSError, SpecError, ProfileError) as error:
         print(f"规格评测配置错误：{error}", file=sys.stderr)
         return 2
     if args.json:
