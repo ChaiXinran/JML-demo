@@ -1,0 +1,55 @@
+{
+  "id": "unfollow_user",
+  "title": "unfollowUser JML 填空练习",
+  "method": "unfollowUser",
+  "allowed_modes": [
+    "hint",
+    "review"
+  ],
+  "default_mode": "hint",
+  "feedback_contract": {
+    "hint": {
+      "level": "guided",
+      "reveals": [
+        "one highest-priority category",
+        "one direct repair direction"
+      ],
+      "never_reveals": [
+        "replacement clause",
+        "reference JML",
+        "state snapshot",
+        "hidden mutations"
+      ]
+    },
+    "review": {
+      "level": "detailed",
+      "reveals": [
+        "blank location",
+        "category",
+        "abstract counterexample shape",
+        "repair direction"
+      ],
+      "never_reveals": [
+        "replacement clause",
+        "reference JML",
+        "complete state",
+        "hidden mutations"
+      ]
+    }
+  },
+  "placeholders": [
+    "PRE",
+    "POST_FORWARD",
+    "POST_INVERSE"
+  ],
+  "allowed_symbols": [
+    "containsFollower",
+    "containsUser",
+    "getUser",
+    "id1",
+    "id2",
+    "isFollowing",
+    "users"
+  ],
+  "semantic_suite": "../judge-2027/unit3/spec_judge/suites/NetworkInterface/unfollowUser/suite.yaml"
+}

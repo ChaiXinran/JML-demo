@@ -133,7 +133,11 @@ class ExerciseWebApp:
         self.model = model
         self.base_url = base_url
         self.static_dir = project_root / "web"
-        self.reference_fixture = project_root / "staff" / "fixtures" / "follow_user_complete.java"
+        suite_value = self.bundle.config.get("semantic_suite")
+        self.semantic_suite = (
+            (project_root / suite_value).resolve()
+            if isinstance(suite_value, str) and suite_value else None
+        )
         self.semantic_entry = (
             project_root.parent / "judge-2027" / "unit3" / "spec_judge" / "semantic_check.py"
         )
@@ -225,6 +229,13 @@ class ExerciseWebApp:
                 "mode": mode,
             }
         semantic = self.semantic_check(submission)
+        if not os.environ.get("DEEPSEEK_API_KEY", "").strip():
+            return {
+                "checks": checks,
+                "semantic": semantic,
+                "coach": None,
+                "mode": mode,
+            }
         client = DeepSeekChatClient(model=self.model, base_url=self.base_url)
         prompt = build_review_prompt(
             self.project_root,
@@ -244,7 +255,7 @@ class ExerciseWebApp:
 
     def semantic_check(self, submission: str) -> dict[str, Any]:
         """Run the server-owned semantic judge without exposing its reference file."""
-        if not self.reference_fixture.is_file() or not self.semantic_entry.is_file():
+        if self.semantic_suite is None or not self.semantic_suite.is_file() or not self.semantic_entry.is_file():
             return {
                 "score": 0,
                 "passed": False,
@@ -266,10 +277,8 @@ class ExerciseWebApp:
                     sys.executable,
                     str(self.semantic_entry),
                     name,
-                    "--reference",
-                    str(self.reference_fixture),
-                    "--method",
-                    self.bundle.config["method"],
+                    "--suite",
+                    str(self.semantic_suite),
                     "--json",
                 ],
                 capture_output=True,
@@ -278,6 +287,18 @@ class ExerciseWebApp:
                 timeout=10,
                 check=False,
             )
+            if completed.returncode == 2:
+                return {
+                    "score": 0,
+                    "passed": False,
+                    "diagnostics": [{
+                        "code": "JUDGE_CONFIGURATION",
+                        "location": "SERVER",
+                        "category": "评测服务配置",
+                        "observation": "服务器端 suite 或参考合同配置无效。",
+                        "guidance": "请联系课程组。",
+                    }],
+                }
             try:
                 payload = json.loads(completed.stdout)
             except json.JSONDecodeError:

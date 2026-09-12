@@ -20,7 +20,7 @@
       <article id="requirement" class="prose"></article>
       <div class="guide-card">
         <strong>解题顺序</strong>
-        <ol><li>列出成功所需条件</li><li>确定成功后的可观察状态</li><li>按优先级排除异常重叠</li></ol>
+        <ol><li>列出调用前应满足的条件</li><li>确定调用后的可观察状态</li><li>检查题目要求的边界与异常情况</li></ol>
       </div>
     </section>
 
@@ -46,14 +46,14 @@
     </section>
 
     <section class="panel feedback-panel">
-      <div class="panel-heading"><span class="eyebrow">03 · REFLECT</span><h2>Agent 反馈</h2></div>
-      <div id="empty-feedback" class="empty-state"><div class="orbit">?</div><p>填写后提交。系统先作确定性规格评测，再由 Agent 解释诊断结果。</p></div>
+      <div class="panel-heading"><span class="eyebrow">03 · REFLECT</span><h2>评测与反馈</h2></div>
+      <div id="empty-feedback" class="empty-state"><div class="orbit">?</div><p>填写后提交。系统进行确定性规格评测；配置模型密钥后还会提供学习建议。</p></div>
       <div id="checking" class="checking hidden"><span></span><span></span><span></span><p>正在核对需求、接口与规格…</p></div>
       <div id="feedback-content" class="feedback-content hidden"></div>
       <div id="history" class="history"></div>
     </section>
 
-    <section class="panel demo-box">
+    <section id="consistency-demo" class="panel demo-box hidden">
       <div class="demo-heading">
         <div>
           <span class="eyebrow">04 · VERIFY BOTH CHAINS</span>
@@ -72,7 +72,7 @@
           <pre><code id="case-jml"></code></pre>
         </article>
         <article class="code-card">
-          <div><span>学生 Java · 核心状态更新</span><span>followUser</span></div>
+          <div><span>学生 Java · 核心状态更新</span><span id="case-method-name"></span></div>
           <pre><code id="case-java"></code></pre>
         </article>
         <section id="consistency-result" class="result-stage">

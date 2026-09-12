@@ -67,6 +67,11 @@ def main() -> None:
     publish_parser.add_argument("--blank-plan", required=True)
     publish_parser.add_argument("--exercise-dir", required=True)
     publish_parser.add_argument("--title", help="optional student-visible exercise title")
+    publish_parser.add_argument(
+        "--semantic-suite",
+        type=Path,
+        help="optional server-side JML suite to bind to the generated Web exercise",
+    )
     exercise_parser = sub.add_parser("exercise", help="review a student's JML fill-in submission")
     exercise_parser.add_argument("--exercise-dir", required=True)
     exercise_parser.add_argument("--mode", choices=("hint", "review"), default="hint")
@@ -126,6 +131,7 @@ def main() -> None:
             blank_plan_file=Path(args.blank_plan),
             exercise_dir=Path(args.exercise_dir),
             title=args.title,
+            semantic_suite=args.semantic_suite,
         )
         print(Path(args.exercise_dir).resolve())
         return
