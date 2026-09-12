@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "name": "NetworkInterface.followUser",
+  "profile": "network_v1",
+  "method": "followUser",
+  "parameters": {"id1": "int", "id2": "int"},
+  "contract_shape": {
+    "requires": {"min": 1},
+    "ensures": {"min": 1},
+    "signals": 4
+  },
+  "grading": {
+    "applicability": 20,
+    "postcondition": 30,
+    "exceptions": 40,
+    "locked": 10
+  },
+  "diagnostics": {
+    "applicability": {
+      "location": "NORMAL_CONDITION",
+      "guidance": "检查正常执行是否同时排除了缺失用户、自关注和重复关注。"
+    },
+    "postcondition": {
+      "guidance": "核对关注关系的方向，以及该条件描述的是关注还是粉丝关系。",
+      "slots": ["FORWARD_POSTCONDITION", "INVERSE_POSTCONDITION"]
+    },
+    "exceptions": {
+      "guidance": "检查该分支是否覆盖了自己的情形，并正确排除了更早的异常情形。",
+      "slots": [
+        "FIRST_USER_MISSING",
+        "SECOND_USER_MISSING",
+        "SELF_FOLLOW",
+        "DUPLICATE_FOLLOW"
+      ]
+    }
+  },
+  "quality": {"min_mutation_score": 100},
+  "solver": {"mode": "audit", "timeout_ms": 1000},
+  "reference": "../../../../../../Agent/staff/fixtures/follow_user_complete.java",
+  "points": "points.yaml"
+}

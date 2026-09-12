@@ -2,6 +2,7 @@
   "id": "hw9-follow-user-jml-fill",
   "title": "用 JML 描述双向关注关系",
   "method": "followUser",
+  "semantic_suite": "../judge-2027/unit3/spec_judge/suites/NetworkInterface/followUser/suite.yaml",
   "allowed_modes": ["hint", "review"],
   "default_mode": "hint",
   "feedback_contract": {

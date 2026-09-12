@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "fixtures": {
+    "clear": {"users": [1, 2], "following": [], "followers": [], "blocked": []},
+    "blocked": {"users": [1, 2], "following": [], "followers": [], "blocked": [[1, 2]]},
+    "missing": {"users": [1], "following": [], "followers": [], "blocked": []}
+  },
+  "generators": [
+    {
+      "id": "applicability",
+      "mode": "exhaustive",
+      "kind": "pre",
+      "args": {"id1": [1, 2], "id2": [1, 2]},
+      "pre": [{"use": "clear"}]
+    },
+    {
+      "id": "result_grid",
+      "mode": "exhaustive",
+      "kind": "post",
+      "args": {"id1": [1, 2], "id2": [1, 2]},
+      "pre": [{"use": "clear"}, {"use": "blocked"}, {"use": "missing"}],
+      "post": [{"copy": "pre"}]
+    }
+  ]
+}

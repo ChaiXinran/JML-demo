@@ -197,6 +197,7 @@ class AgentTest(unittest.TestCase):
         result = app.semantic_check(submission)
         self.assertFalse(result["passed"])
         self.assertIn("FORWARD_POSTCONDITION", {item["location"] for item in result["diagnostics"]})
+        self.assertEqual("NetworkInterface.followUser", result["evaluation"]["suite"])
         self.assertNotIn("reference", json.dumps(result, ensure_ascii=False).lower())
 
     def test_web_returns_unfilled_blank_feedback_without_semantic_judge_or_llm(self):
@@ -217,6 +218,25 @@ class AgentTest(unittest.TestCase):
         self.assertIsNone(result["semantic"])
         self.assertEqual("INCOMPLETE", result["coach"]["verdict"])
         self.assertIn("填写", result["coach"]["next_step"])
+
+    def test_web_review_without_api_key_returns_deterministic_result(self):
+        project_root = Path(__file__).resolve().parent.parent
+        app = ExerciseWebApp(
+            project_root=project_root,
+            exercise_dir=project_root / "exercises" / "follow_user",
+            model="deepseek-chat",
+            base_url="https://api.deepseek.com",
+        )
+        submission = (
+            project_root / "exercises" / "follow_user" / "samples" / "wrong-relation-direction.java"
+        ).read_text(encoding="utf-8")
+        with patch.dict("os.environ", {"DEEPSEEK_API_KEY": ""}), \
+             patch("hw9_agent.webapp.DeepSeekChatClient", side_effect=AssertionError("LLM must not run")):
+            result = app.review({"submission": submission, "mode": "hint"})
+        self.assertEqual("STRUCTURE_OK", result["checks"][0]["code"])
+        self.assertFalse(result["semantic"]["passed"])
+        self.assertEqual("NetworkInterface.followUser", result["semantic"]["evaluation"]["suite"])
+        self.assertIsNone(result["coach"])
 
     def test_web_returns_structured_coach_feedback_not_raw_model_yaml(self):
         project_root = Path(__file__).resolve().parent.parent
@@ -242,9 +262,11 @@ class AgentTest(unittest.TestCase):
             "next_step": "检查两个关系谓词中用户的位置。",
             "may_resubmit": True,
         }, ensure_ascii=False)
-        with patch("hw9_agent.webapp.DeepSeekChatClient") as client_type:
+        with patch.dict("os.environ", {"DEEPSEEK_API_KEY": "test-key"}), \
+             patch("hw9_agent.webapp.DeepSeekChatClient") as client_type:
             client_type.return_value.generate.return_value = model_response
             result = app.review({"submission": submission, "mode": "review"})
+            client_type.assert_called_once()
         self.assertNotIn("feedback", result)
         self.assertEqual("NEEDS_REVISION", result["coach"]["verdict"])
         self.assertEqual("FORWARD_POSTCONDITION", result["coach"]["issues"][0]["location"])
@@ -259,8 +281,11 @@ class AgentTest(unittest.TestCase):
     def test_web_ui_renders_structured_coach_cards_not_raw_feedback(self):
         project_root = Path(__file__).resolve().parent.parent
         script = (project_root / "web" / "app.js").read_text(encoding="utf-8")
+        page = (project_root / "web" / "index.html").read_text(encoding="utf-8")
         self.assertIn("function renderCoach(coach)", script)
         self.assertIn("renderCoach(data.coach)", script)
+        self.assertIn("if(cases.length){$('consistency-demo').classList.remove('hidden')", script)
+        self.assertIn('id="consistency-demo" class="panel demo-box hidden"', page)
         self.assertNotIn("data.feedback", script)
 
     def test_student_prompt_uses_public_feedback_contract_only(self):
@@ -367,6 +392,7 @@ class AgentTest(unittest.TestCase):
         self.assertEqual("generated_exercise", config["id"])
         self.assertEqual("add", config["method"])
         self.assertEqual(["PRE", "POST", "ERR"], config["placeholders"])
+        self.assertNotIn("semantic_suite", config)
         self.assertNotIn("samples", config)
         self.assertNotIn("interface", config)
         self.assertIn("items", config["allowed_symbols"])
@@ -380,6 +406,49 @@ class AgentTest(unittest.TestCase):
             [{"id": "wrong-case", "label": "样例：wrong case", "file": "samples/wrong-case.java"}],
             bundle.config["samples"],
         )
+
+    def test_publish_exercise_binds_matching_semantic_suite_for_web(self):
+        root = Path(self.temp.name)
+        requirement = root / "requirement.md"
+        requirement.write_text("# Add\n", encoding="utf-8")
+        blank_plan = root / "blank_plan.json"
+        blank_plan.write_text(
+            json.dumps({
+                "status": "teacher_approved",
+                "method": "DemoInterface.add",
+                "student_owned_blanks": [
+                    {"id": "PRE", "source_jml_selector": {"clause": "requires", "occurrence": 1}},
+                ],
+            }),
+            encoding="utf-8",
+        )
+        suite = root / "add.yaml"
+        suite.write_text(json.dumps({"method": "add"}), encoding="utf-8")
+        exercise_dir = root / "bound_exercise"
+
+        build_exercise_package(self.path, requirement, blank_plan, exercise_dir, semantic_suite=suite)
+
+        project_root = Path(__file__).resolve().parent.parent
+        config = json.loads((exercise_dir / "exercise.json").read_text(encoding="utf-8"))
+        self.assertEqual(suite.resolve(), (project_root / config["semantic_suite"]).resolve())
+        app = ExerciseWebApp(project_root, exercise_dir, "deepseek-chat", "https://api.deepseek.com")
+        self.assertEqual(suite.resolve(), app.semantic_suite)
+        self.assertNotIn("semantic_suite", app.public_exercise())
+        self.assertEqual([], app.public_exercise()["consistency_demo_cases"])
+
+        suite.write_text(json.dumps({"method": "otherMethod"}), encoding="utf-8")
+        mismatched_dir = root / "mismatched_exercise"
+        with self.assertRaisesRegex(ValueError, "Semantic suite method must be add"):
+            build_exercise_package(self.path, requirement, blank_plan, mismatched_dir, semantic_suite=suite)
+        self.assertFalse(mismatched_dir.exists())
+
+        missing_dir = root / "missing_suite_exercise"
+        with self.assertRaisesRegex(FileNotFoundError, "Semantic suite does not exist"):
+            build_exercise_package(
+                self.path, requirement, blank_plan, missing_dir,
+                semantic_suite=root / "not_found.yaml",
+            )
+        self.assertFalse(missing_dir.exists())
 
 
 if __name__ == "__main__":

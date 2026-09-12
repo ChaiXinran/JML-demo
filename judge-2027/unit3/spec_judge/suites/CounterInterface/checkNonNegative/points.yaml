@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "fixtures": {
+    "zero": {"value": 0},
+    "positive": {"value": 1},
+    "negative": {"value": -1}
+  },
+  "points": [
+    {"id": "pre_zero", "kind": "pre", "args": {}, "pre": {"use": "zero"}}
+  ],
+  "generators": [
+    {
+      "id": "counter_outcomes",
+      "mode": "mutations",
+      "kind": "post",
+      "args": {},
+      "pre": [{"use": "zero"}],
+      "rule": "neighbor_values",
+      "variants": ["unchanged", "above", "below"]
+    }
+  ]
+}

@@ -21,8 +21,20 @@
 | `Agent/cases/follow_user/` | 教师侧题面与经批准的挖空计划 | 不直接发放 |
 | `Agent/exercises/follow_user/` | 面向学生的题面、模板和公开样例 | 可以 |
 | `Agent/staff/` | 参考填写、rubric 等教师资产 | 不可以 |
-| `judge-2027/unit3/spec_judge/` | `followUser` 的受限 JML 规格评测原型 | 服务器侧 |
+| `judge-2027/unit3/spec_judge/` | Profile + suite 驱动的 JML–JML 一致性评测器 | 服务器侧 |
 | `U3 GuideBook/` | 2026 单元指导书参考 | 课程组 |
+
+评测器已不只绑定 `followUser`：仓库内同时包含复用网络领域的新方法、新状态关系，以及独立 `Counter` 类/Profile 的示例。先看[评测器说明](judge-2027/unit3/spec_judge/README.md)了解能力与边界；第一次增加测试点或新方法，按[手把手使用说明](judge-2027/unit3/spec_judge/USAGE.md)操作。最短验证命令为：
+
+```powershell
+Set-Location "judge-2027\unit3\spec_judge"
+python validate_suite.py "suites\NetworkInterface\followUser\suite.yaml"
+python semantic_check.py "..\..\..\Agent\staff\fixtures\follow_user_complete.java" `
+  --suite "suites\NetworkInterface\followUser\suite.yaml" `
+  --json
+```
+
+固定点评测无需第三方依赖；可选 SMT 后端的依赖与 `off/audit/required` 模式见上述评测说明。
 
 ## 3. 运行前准备
 
@@ -52,7 +64,7 @@ $env:DEEPSEEK_MODEL = "deepseek-v4-flash"
 $env:DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 ```
 
-不要把密钥写入仓库、题目 JSON、学生包或 Markdown 文档。接口解析、模板生成、离线结构检查和规格评测原型不需要密钥。
+不要把密钥写入仓库、题目 JSON、学生包或 Markdown 文档。接口解析、模板生成、离线结构检查和确定性 JML 一致性评测不需要密钥；Web 的模型学习反馈需要。
 
 ## 4. 先准备官方完整 JML
 
@@ -237,6 +249,8 @@ python -m hw9_agent publish-exercise `
 
 默认标题为“`<方法名> JML 填空练习`”；若需要自定义学生可见标题，可追加 `--title "..."`。目标目录已经存在时命令会停止，避免覆盖已发布的学生包或其中的演示样例。
 
+若此题需要在 Web 中运行 JML 一致性评测，在发布命令末尾追加 `--semantic-suite "../judge-2027/unit3/spec_judge/suites/NetworkInterface/followUser/suite.yaml"`（路径从 `Agent/` 出发）。命令会检查 Suite 与练习的方法名相同，自动写入 `exercise.json`；新方法从 Suite 到 Web 的完整流程见[手把手说明第 9 节](judge-2027/unit3/spec_judge/USAGE.md#9-把新方法接入-web-ui从-suite-到学生页面)。
+
 自动生成的 `exercise.json` 包含：方法名、占位符顺序、默认提示/讲解配置，以及从嵌入式 JML 提取的公开符号。助教无需手写它。若要提供演示样例，只需将 `.java` 文件放入 `samples/`；页面会自动识别，并以文件名生成展示名称，无需再修改配置。
 
 ### 8.1 低层接口模板命令
@@ -331,15 +345,25 @@ python -m hw9_agent exercise `
 
 ## 11. 学生侧：Web 界面
 
-启动本地服务：
+从仓库根目录进入 `Agent/` 后启动本地服务。**不配置 DeepSeek 密钥也能使用“提交审查”查看确定性 JML 评分**；只有需要模型学习建议时才设置密钥。Windows PowerShell：
 
 ```powershell
-$env:DEEPSEEK_API_KEY = "你的密钥"
+Set-Location "Agent"
+# 可选：需要模型学习建议时再设置真实密钥
+# $env:DEEPSEEK_API_KEY = "你的密钥"
 
 python -m hw9_agent web `
   --exercise-dir "exercises\follow_user" `
   --host 127.0.0.1 `
   --port 8000
+```
+
+macOS/Linux 终端（同样从仓库根目录开始）：
+
+```bash
+cd Agent
+# 可选：需要模型学习建议时再执行 export DEEPSEEK_API_KEY='你的密钥'
+python3 -m hw9_agent web --exercise-dir exercises/follow_user --host 127.0.0.1 --port 8000
 ```
 
 浏览器打开 <http://127.0.0.1:8000>，以 `Ctrl+C` 停止服务。
@@ -350,22 +374,22 @@ python -m hw9_agent web `
 | --- | --- | --- |
 | `GET /health` | 健康检查 | 否 |
 | `GET /api/exercise` | 获取公开题面、模板、样例与反馈契约 | 否 |
-| `POST /api/check` | 运行离线结构检查 | 否 |
-| `POST /api/review` | 返回结构检查加模型学习反馈 | 是 |
+| `POST /api/check` | 返回结构检查和确定性 JML 一致性评分/诊断 | 否 |
+| `POST /api/review` | 返回结构检查和确定性评分；配置密钥时再附加模型学习反馈 | 仅有密钥时 |
+| `POST /api/demo-consistency` | 运行预配置的旧双一致性演示；不是本 JML–JML 评分入口 | 否 |
 
-没有密钥时，页面与 `GET /api/exercise`、`POST /api/check` 仍可用；请求 `POST /api/review` 会返回服务不可用错误。不要把服务绑定到公网地址，除非另行完成认证、限流与密钥隔离。
+Web 练习在服务器端通过 `exercise.json` 的 `semantic_suite` 选择一个 suite；现有 `follow_user` 和 `unfollow_user` 两个练习均已配置对应 Suite。启动后每个 Web 进程只服务其 `--exercise-dir` 指定的练习；要体验 `unfollow_user`，将上面的启动命令改为 `--exercise-dir exercises/unfollow_user`。页面“提交审查”调用 `/api/review`：无密钥时只显示结构检查和确定性评分/诊断，不请求模型；有密钥时按原流程追加模型建议。未填完空位时先提示补齐，不运行语义评测。`/api/check` 仍可供外部程序单独调用。要在 Web 上评测新方法，除创建 suite 外，还需创建对应学生练习包并配置 `semantic_suite`；详见[手把手使用说明](judge-2027/unit3/spec_judge/USAGE.md)第 9 节。不要把服务绑定到公网地址，除非另行完成认证、限流与密钥隔离。
 
-## 12. JML 统一语义评测（仅 followUser Demo）
+## 12. JML–JML 一致性评测（按 suite 选择方法）
 
-当前正式 Demo 入口为 `semantic_check.py`：一次运行全部已实现的语义义务，不存在 weak/mid/strong 参数。它不调用 LLM、不执行学生 Java；服务器以完整参考 JML 为参照，返回分数和结构化诊断。旧 `spec_judge.py` 的 weak/mid/all 仅保留为开发回归原型，不能用于课程评分。
+正式入口为 `semantic_check.py --suite`：suite 指定目标方法、参考 JML、领域 Profile、测试点和评分权重。评测器在相同的前态/候选后态上分别解释参考 JML 与学生 JML，比较正常执行条件、后置条件、异常匹配和受支持的 frame；测试点不保存预期答案。它不调用 LLM、不执行学生 Java，也不替代 OpenJML。旧 `spec_judge.py` 的 weak/mid/all 仅保留为开发回归原型，不能用于课程评分。
 
 从 `JML-demo` 根目录运行（如果刚执行完第 11 节，先用 `Set-Location ..` 返回根目录）：
 
 ```powershell
 python judge-2027/unit3/spec_judge/semantic_check.py `
   "提交\NetworkInterface.java" `
-  --reference "Agent\staff\fixtures\follow_user_complete.java" `
-  --method followUser `
+  --suite "judge-2027\unit3\spec_judge\suites\NetworkInterface\followUser\suite.yaml" `
   --json
 ```
 
@@ -374,13 +398,12 @@ python judge-2027/unit3/spec_judge/semantic_check.py `
 | 参数 | 默认值 | 说明 |
 | --- | --- | --- |
 | `java_source` | 无 | 含 JML 注释的学生 `.java` 接口文件。 |
-| `--reference` | 无 | 服务器端完整参考 JML；正式部署时不向学生公开。 |
-| `--method` | `followUser` | 被提取和评测的方法名。 |
+| `--suite` | 无 | 指向服务器端 suite；正式使用时由它锁定参考 JML、方法、Profile 与隐藏测试点。 |
 | `--json` | 关闭 | 输出供平台和 LLM 教学层使用的结构化诊断。 |
 
-当前 Demo 支持 `followUser` 的一个 `requires`、两个关系 `ensures`、四个 `signals` 条件、布尔逻辑、比较、`\old` 及有限的用户关系模型。它不执行 Java、不支持任意 Java 调用，也不是完整 OpenJML。
+`--reference` 和 `--method` 仅为旧兼容入口；使用 `--suite` 时不要同时传入。仓库当前有 `NetworkInterface.followUser`、`containsBoth`、`canInteract`、`unfollowUser` 和 `CounterInterface.checkNonNegative` 五个可用 Suite。新增同领域方法通常在 `suites/<类名>/<方法名>/` 新建参考 Java、`suite.yaml`、`points.yaml`；新增未知状态或 JML 查询才需要扩展 Profile。
 
-内部可以按义务组织检查，但学生只得到一次结果和精确的错误类别，不能选择或获知测试分组、状态快照、完整参考 JML 或变异集。Web 端会先调用该评测器，再将诊断交给 LLM 解释；LLM 不参与判分。
+默认评分只表示在 suite 声明的固定/有限测试点上与参考 JML 一致，不证明全部可能状态下等价。可选 SMT 后端能在已建模的 JML 子集内审计或强制查找逻辑差异，但不能把本评测器变成完整 JML 编译器；例如当前不支持 `\result`、量词或完整 frame 语义。语法、加点步骤及覆盖范围见[评测器说明](judge-2027/unit3/spec_judge/README.md)和[手把手使用说明](judge-2027/unit3/spec_judge/USAGE.md)。学生只得到一次评分和脱敏诊断，不能获知参考 JML、隐藏点或求解器模型；Web 端的 LLM 只解释诊断，不参与判分。
 
 ## 13. 测试与发布前检查
 
@@ -393,13 +416,16 @@ node --check web\app.js
 Pop-Location
 ```
 
-### 13.2 规格评测原型回归测试
+### 13.2 JML 一致性评测回归测试
 
 ```powershell
 Push-Location "judge-2027\unit3\spec_judge"
-python -m unittest -v
+python validate_suite.py "suites\NetworkInterface\followUser\suite.yaml"
+python -m unittest test_semantic_judge.py -v
 Pop-Location
 ```
+
+此命令覆盖当前通用一致性评测；可选 Z3 未安装时相关测试会跳过。旧 JML–Java/OpenJML 链的测试属于另一范围。
 
 ### 13.3 题目发布检查清单
 
@@ -408,10 +434,12 @@ Pop-Location
 - [ ] `blank_plan.json` 的每个选择器都能定位到一个既有 JML 子句。
 - [ ] 已用 `publish-exercise` 命令重新生成学生练习包，并人工核对锁定区未变化。
 - [ ] 自动生成的 `exercise.json` 中的占位符顺序与模板一致。
+- [ ] 新方法的参考 Java、suite、points 已按使用说明建立，`validate_suite.py` 通过，且正确/故意错误 JML 样例得分符合预期。
+- [ ] 若接入 Web，`exercise.json` 的 `semantic_suite` 指向服务器端对应 suite；参考 JML 与隐藏点未进入学生包。
 - [ ] 每种希望识别的错误都有可区分的状态/历史和对应评测器回归测试。
 - [ ] 统一语义评测的反馈不泄露参考子句、状态快照或隐藏变异。
 - [ ] 完整参考填写、语义检查规则和 rubric 只在教师/服务器侧保存。
-- [ ] Agent 和规格评测原型的测试均通过。
+- [ ] Agent 和 JML 一致性评测的测试均通过。
 
 ## 14. 常见问题
 
@@ -423,4 +451,4 @@ Pop-Location
 
 **`STRUCTURE_OK` 是否意味着通过？** 不意味着。它只说明占位符和锁定框架形式正确，之后仍需要语义评测。
 
-**能否把 `--suite all` 当正式规格分？** 不能。它只是当前原型的开发选项。正式系统应只有一次统一的服务器端语义评测。
+**能否把 `spec_judge.py --suite all` 当正式规格分？** 不能。它只是旧原型的开发选项；正式评测使用 `semantic_check.py --suite <方法配置文件>`，由服务器为一次提交选择对应 suite。

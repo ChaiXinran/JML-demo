@@ -1,9 +1,8 @@
-"""A deliberately small JML contract checker for the Unit 3 HW9 pilot.
+"""LEGACY regression prototype; do not use this module for course grading.
 
-The checker evaluates JML *fragments* against course-provided logical state
-snapshots.  It never imports, compiles, or invokes student code.  Supporting a
-small language is intentional: a full JML implementation is neither necessary
-nor appropriate for this formative specification exercise.
+The supported entrypoint is ``semantic_check.py --suite ...``.  This older
+checker remains temporarily because ``test_spec_judge.py`` preserves its pilot
+behavior.  It evaluates JML fragments only and never invokes student code.
 """
 
 from __future__ import annotations

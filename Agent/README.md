@@ -6,7 +6,7 @@ JML，把方法规格拆成结构化信息，再执行一致性检查并生成�
 确定性代码负责接口 grounding、解析和基础检查；五阶段草案流程可使用 DeepSeek API。
 密钥只从环境变量读取，不写入仓库。
 
-仓库还提供 4 个阶段 Prompt 与 HW9 专用 Skill。可以人工逐阶段调用模型，也可以先
+仓库还提供 5 个教师侧阶段 Prompt、1 个学生反馈 Prompt 与 HW9 专用 Skill。可以人工逐阶段调用模型，也可以先
 用 `prepare` 命令组装包含真实接口上下文的完整输入。
 
 ## 快速开始
@@ -79,7 +79,7 @@ python -m hw9_agent publish-exercise `
 ```
 
 该命令确定性生成 `template.java`、`requirement.md`、`exercise.json` 和空的 `samples/` 目录。
-`exercise.json` 的方法名、占位符、默认反馈配置和公开符号均由输入自动派生；助教无需填写它。若需公开演示样例，只需把 `.java` 文件放入 `samples/`，页面会按文件名自动识别。`--title` 仅在需要自定义学生可见标题时使用。
+`exercise.json` 的方法名、占位符、默认反馈配置和公开符号均由输入自动派生；助教无需填写它。若已有通过验证的 JML 一致性 Suite，可在发布命令末尾追加 `--semantic-suite "../judge-2027/unit3/spec_judge/suites/NetworkInterface/followUser/suite.yaml"`，命令会校验方法名并自动把 Web 所需的 `semantic_suite` 路径写进 `exercise.json`。若需公开演示样例，只需把 `.java` 文件放入 `samples/`，页面会按文件名自动识别。`--title` 仅在需要自定义学生可见标题时使用。新方法完整步骤见 [USAGE.md](../judge-2027/unit3/spec_judge/USAGE.md#9-把新方法接入-web-ui从-suite-到学生页面)。
 
 低层的 `template` 命令仍可在只需要一个学生接口文件时使用：
 
@@ -153,7 +153,7 @@ python -m hw9_agent consistency `
 ## Web 学习界面
 
 ```powershell
-$env:DEEPSEEK_API_KEY = "你的密钥"
+# 可选：需要模型学习建议时设置 DEEPSEEK_API_KEY
 
 python -m hw9_agent web `
   --exercise-dir "exercises\follow_user" `
@@ -163,6 +163,7 @@ python -m hw9_agent web `
 浏览器访问 `http://127.0.0.1:8000`。页面提供逐空填写、完整 Java 接口预览、确定性规格评测、
 提示/讲解模式、多轮提交记录和一键重置。模型只接收公开题面、模板、允许符号、公开反馈契约、
 学生提交和已判定的诊断；服务器端参考规格与 rubric 不会发送给浏览器或模型。
+从仓库根目录开始的 Windows/macOS/Linux 启动方式和密钥行为，详见[根 README 第 11 节](../README.md#11-学生侧web-界面)。当前页面“提交审查”在无密钥时直接显示确定性评分；有密钥时才追加模型学习建议。`POST /api/check` 仍可供程序单独调用。
 
 ## 教师侧规格审计
 
@@ -182,6 +183,8 @@ python -m hw9_agent web `
 完整嵌入式 JML 始终是唯一的行为权威。每个教师案例须提供已批准的
 `blank_plan.json`；它只记录从完整 JML 导出的挖空位置。详细说明见仓库根目录的 [`report.md`](../report.md)。
 
+Web 练习的 `exercise.json` 还应指定 `semantic_suite`，路径相对于 `Agent/`；新建练习时用 `publish-exercise --semantic-suite` 自动配置，已有练习包则可手动添加该字段并重启 Web。Web 只把学生提交交给该 suite，不读取或返回参考 JML 与隐藏测试点。suite 的编写和验证见 [`spec_judge/README.md`](../judge-2027/unit3/spec_judge/README.md)。
+
 ## Demo 资产
 
 - `skills/`：JML、HW9 领域、规格模式和 critic 清单。
@@ -192,5 +195,5 @@ python -m hw9_agent web `
 ## 已知边界
 
 - 这是面向课程 JML Level 0 风格的轻量解析器，不是完整 JML 编译器。
-- 当前受限规格评测器只覆盖 `followUser` 的部分抽象语法，不是完整 JML 编译器。
+- 当前一致性评测器已支持多个方法、多个类和可扩展 Profile，但仍只解释文档列出的 JML 子集，不是完整 JML 编译器。
 - Java 功能正确性仍应由现有 Runner/SPJ 或其后续扩展判断；Agent 不决定正式分数。

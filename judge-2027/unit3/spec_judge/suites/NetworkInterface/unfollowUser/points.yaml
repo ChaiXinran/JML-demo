@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "fixtures": {
+    "linked": {
+      "users": [1, 2],
+      "following": [[1, 2]],
+      "followers": [[2, 1]]
+    },
+    "unlinked": {
+      "users": [1, 2],
+      "following": [],
+      "followers": []
+    }
+  },
+  "points": [
+    {"id": "before_linked", "kind": "pre", "args": {"id1": 1, "id2": 2}, "pre": {"use": "linked"}},
+    {"id": "before_unlinked", "kind": "pre", "args": {"id1": 1, "id2": 2}, "pre": {"use": "unlinked"}},
+    {
+      "id": "after_correct",
+      "kind": "post",
+      "args": {"id1": 1, "id2": 2},
+      "pre": {"use": "linked"},
+      "post": {
+        "copy": "pre",
+        "remove": {"following": [[1, 2]], "followers": [[2, 1]]}
+      }
+    },
+    {
+      "id": "after_missing_inverse",
+      "kind": "post",
+      "args": {"id1": 1, "id2": 2},
+      "pre": {"use": "linked"},
+      "post": {"copy": "pre", "remove": {"following": [[1, 2]]}}
+    },
+    {
+      "id": "after_unchanged",
+      "kind": "post",
+      "args": {"id1": 1, "id2": 2},
+      "pre": {"use": "linked"},
+      "post": {"copy": "pre"}
+    }
+  ]
+}

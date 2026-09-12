@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 from pathlib import Path
@@ -126,12 +127,31 @@ def _public_symbols(source: str, method_name: str) -> list[str]:
     return sorted(symbols)
 
 
+def _semantic_suite_path(semantic_suite: Path, method_name: str) -> str:
+    """Validate a server-side suite and store its path relative to Agent/."""
+    if not semantic_suite.is_file():
+        raise FileNotFoundError(f"Semantic suite does not exist: {semantic_suite}")
+    try:
+        suite = json.loads(semantic_suite.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise ValueError(f"Semantic suite must use JSON-compatible YAML: {semantic_suite}") from error
+    if not isinstance(suite, dict) or suite.get("method") != method_name:
+        raise ValueError(f"Semantic suite method must be {method_name}: {semantic_suite}")
+    project_root = Path(__file__).resolve().parent.parent
+    try:
+        relative = os.path.relpath(semantic_suite.resolve(), project_root)
+    except ValueError as error:
+        raise ValueError("Semantic suite must be on the same filesystem as Agent/") from error
+    return Path(relative).as_posix()
+
+
 def build_exercise_package(
     interface_file: Path,
     requirement_file: Path,
     blank_plan_file: Path,
     exercise_dir: Path,
     title: str | None = None,
+    semantic_suite: Path | None = None,
 ) -> None:
     """Create the public exercise assets from the three staff-authored inputs.
 
@@ -151,6 +171,7 @@ def build_exercise_package(
         raise ValueError("blank_plan.json contains duplicate placeholder ids")
     if not requirement_file.is_file():
         raise FileNotFoundError(f"Requirement file does not exist: {requirement_file}")
+    suite_path = _semantic_suite_path(semantic_suite, method_name) if semantic_suite else None
 
     exercise_dir.mkdir(parents=True)
     (exercise_dir / "samples").mkdir()
@@ -166,6 +187,8 @@ def build_exercise_package(
         "placeholders": placeholders,
         "allowed_symbols": _public_symbols(source, method_name),
     }
+    if suite_path is not None:
+        manifest["semantic_suite"] = suite_path
     (exercise_dir / "exercise.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",

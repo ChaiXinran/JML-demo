@@ -1,0 +1,9 @@
+{
+  "status": "teacher_approved",
+  "method": "NetworkInterface.unfollowUser",
+  "student_owned_blanks": [
+    {"id": "PRE", "source_jml_selector": {"clause": "requires", "occurrence": 1}},
+    {"id": "POST_FORWARD", "source_jml_selector": {"clause": "ensures", "occurrence": 1}},
+    {"id": "POST_INVERSE", "source_jml_selector": {"clause": "ensures", "occurrence": 2}}
+  ]
+}

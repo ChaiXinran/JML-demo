@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "name": "NetworkInterface.containsBoth",
+  "profile": "network_v1",
+  "method": "containsBoth",
+  "parameters": {"id1": "int", "id2": "int"},
+  "contract_shape": {"requires": 1, "ensures": 1, "signals": 0},
+  "grading": {
+    "applicability": 20,
+    "postcondition": 70,
+    "exceptions": 0,
+    "locked": 10
+  },
+  "quality": {"min_mutation_score": 100},
+  "solver": {"mode": "audit", "timeout_ms": 1000},
+  "reference": "reference.java",
+  "points": "points.yaml"
+}
