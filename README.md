@@ -355,6 +355,7 @@ Set-Location "Agent"
 python -m hw9_agent web `
   --exercise-dir "exercises\follow_user" `
   --host 127.0.0.1 `
+  --openjml "wsl:/home/ranye/.local/openjml-21.0.27/openjml" `
   --port 8000
 ```
 
@@ -379,6 +380,8 @@ python3 -m hw9_agent web --exercise-dir exercises/follow_user --host 127.0.0.1 -
 | `POST /api/demo-consistency` | 运行预配置的旧双一致性演示；不是本 JML–JML 评分入口 | 否 |
 
 Web 练习在服务器端通过 `exercise.json` 的 `semantic_suite` 选择一个 suite；现有 `follow_user` 和 `unfollow_user` 两个练习均已配置对应 Suite。启动后每个 Web 进程只服务其 `--exercise-dir` 指定的练习；要体验 `unfollow_user`，将上面的启动命令改为 `--exercise-dir exercises/unfollow_user`。页面“提交审查”调用 `/api/review`：无密钥时只显示结构检查和确定性评分/诊断，不请求模型；有密钥时按原流程追加模型建议。未填完空位时先提示补齐，不运行语义评测。`/api/check` 仍可供外部程序单独调用。要在 Web 上评测新方法，除创建 suite 外，还需创建对应学生练习包并配置 `semantic_suite`；详见[手把手使用说明](judge-2027/unit3/spec_judge/USAGE.md)第 9 节。不要把服务绑定到公网地址，除非另行完成认证、限流与密钥隔离。
+
+旧的“双一致性案例工作台”会额外调用 OpenJML；其路径可通过 Web 的 `--openjml` 参数或 `OPENJML` 环境变量配置，支持原生可执行文件和 `wsl:/absolute/linux/path`。运行后可展开验证会话查看输入指纹、绑定摘要和 OpenJML 定位。该工作台的旧案例仍使用 Java 内嵌合同；正式命令行一致性检查默认使用提交级 JML 绑定。普通“提交审查”仍只进行 JML–JML 规格评分。
 
 ## 12. JML–JML 一致性评测（按 suite 选择方法）
 

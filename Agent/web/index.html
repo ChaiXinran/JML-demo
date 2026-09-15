@@ -3,84 +3,138 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>HW9 · JML 规格学习助手</title>
-  <meta name="description" content="从自然语言需求出发，填写 JML，并获得可解释的规格反馈。">
-  <link rel="stylesheet" href="/styles.css">
+  <title>HW9 · JML 规格学习工作台</title>
+  <meta name="description" content="围绕当前提交、规格问题、验证证据和反例的 JML 学习工作台。">
+  <link rel="stylesheet" href="/styles.css?v=workbench-4">
   <link rel="stylesheet" href="/demo.css">
 </head>
 <body>
   <header class="topbar">
-    <div class="brand"><span class="mark">J</span><span>HW9 规格学习助手</span></div>
-    <div class="status"><span class="dot"></span><span id="method-name">正在载入题目</span></div>
+    <div class="brand"><span class="mark">J</span><span>HW9 规格学习工作台</span></div>
+    <div class="topbar-context">
+      <span class="method-chip" id="method-name">正在载入题目</span>
+      <span class="tool-status"><span class="dot"></span><span id="tool-status">服务准备中</span></span>
+    </div>
   </header>
 
-  <main class="workspace">
-    <section class="panel brief-panel">
-      <div class="panel-heading"><span class="eyebrow">01 · READ</span><h1 id="exercise-title">JML 填空练习</h1></div>
-      <article id="requirement" class="prose"></article>
-      <div class="guide-card">
-        <strong>解题顺序</strong>
-        <ol><li>列出调用前应满足的条件</li><li>确定调用后的可观察状态</li><li>检查题目要求的边界与异常情况</li></ol>
+  <main class="page-shell">
+    <section class="modebar panel">
+      <div>
+        <span class="eyebrow">HW9 · WORKBENCH</span>
+        <h1 id="exercise-title">JML 规格学习工作台</h1>
+        <p class="mode-intro">当前提交、当前问题和验证证据会在同一个工作区内联动。</p>
       </div>
+      <div class="mode-tabs" role="tablist" aria-label="工作模式">
+        <button class="mode-tab active" type="button" data-mode="practice" role="tab" aria-selected="true">规格练习</button>
+        <button class="mode-tab" type="button" data-mode="validation" role="tab" aria-selected="false">实现验证</button>
+      </div>
+      <div class="draft-state" id="draft-state">草稿 · 尚未提交</div>
     </section>
 
-    <section class="panel editor-panel">
-      <div class="panel-heading editor-heading">
-        <div><span class="eyebrow">02 · WRITE</span><h2>填写规格</h2></div>
-        <div class="heading-actions">
-          <select id="sample-select" aria-label="载入演示样例"><option value="">载入演示样例…</option></select>
-          <button id="reset-button" class="ghost-button" type="button">重置</button>
+    <div class="workbench">
+      <aside class="panel context-panel">
+        <div class="panel-heading compact-heading">
+          <span class="eyebrow">01 · CONTEXT</span>
+          <h2>需求与约束</h2>
         </div>
-      </div>
-      <div id="blank-fields" class="blank-fields"></div>
-      <details class="preview" open>
-        <summary>完整 JML 预览</summary>
-        <textarea id="submission" spellcheck="false" readonly aria-label="完整 JML 预览"></textarea>
-      </details>
-      <div class="action-row">
-        <label>反馈深度
-          <select id="mode"><option value="hint">提示 · 一个优先问题</option><option value="review">讲解 · 已判定问题</option></select>
-        </label>
-        <button id="submit-button" class="primary-button" type="button">提交审查 <span>→</span></button>
-      </div>
-    </section>
+        <article id="requirement" class="prose"></article>
+        <details class="context-details" open>
+          <summary>接口与作答边界</summary>
+          <ul>
+            <li>只填写标记出的 JML 空位，接口框架保持不变。</li>
+            <li>先区分适用条件，再描述调用后的两个方向状态。</li>
+            <li>静态评测、运行复现和 Agent 讲解是三种不同证据。</li>
+          </ul>
+        </details>
+        <div class="clause-nav">
+          <div class="subheading"><span>条款导航</span><span class="muted">点击定位</span></div>
+          <button type="button" class="clause-link" data-jump="NORMAL_CONDITION"><span>01</span>正常执行条件</button>
+          <button type="button" class="clause-link" data-jump="FORWARD_POSTCONDITION"><span>02</span>关注关系后置条件</button>
+          <button type="button" class="clause-link" data-jump="INVERSE_POSTCONDITION"><span>03</span>粉丝关系后置条件</button>
+          <button type="button" class="clause-link" data-jump="SELF_FOLLOW"><span>04</span>边界与异常</button>
+        </div>
+        <div class="context-note"><strong>学习提示</strong><p>问题列表中的条款可以回到这里，再跳转到对应空位；编辑后旧结果会标记为过期。</p></div>
+      </aside>
 
-    <section class="panel feedback-panel">
-      <div class="panel-heading"><span class="eyebrow">03 · REFLECT</span><h2>评测与反馈</h2></div>
-      <div id="empty-feedback" class="empty-state"><div class="orbit">?</div><p>填写后提交。系统进行确定性规格评测；配置模型密钥后还会提供学习建议。</p></div>
-      <div id="checking" class="checking hidden"><span></span><span></span><span></span><p>正在核对需求、接口与规格…</p></div>
-      <div id="feedback-content" class="feedback-content hidden"></div>
-      <div id="history" class="history"></div>
-    </section>
+      <section class="panel center-panel">
+        <div class="panel-heading editor-heading">
+          <div>
+            <span class="eyebrow" id="center-eyebrow">02 · WRITE</span>
+            <h2 id="center-title">填写当前规格</h2>
+          </div>
+          <div class="heading-actions">
+            <select id="sample-select" aria-label="载入演示样例"><option value="">载入演示样例…</option></select>
+            <button id="reset-button" class="ghost-button" type="button">重置</button>
+          </div>
+        </div>
 
-    <section id="consistency-demo" class="panel demo-box hidden">
-      <div class="demo-heading">
-        <div>
-          <span class="eyebrow">04 · VERIFY BOTH CHAINS</span>
-          <h2>双一致性案例工作台</h2>
-          <p>先阅读学生的 JML 与 Java，再运行两个独立 Judge。</p>
+        <div id="practice-view" class="mode-view">
+          <div class="step-strip"><span class="step active">A · 填写</span><span>→</span><span class="step">B · 检查</span><span>→</span><span class="step">C · 修订</span></div>
+          <div id="blank-fields" class="blank-fields"></div>
+          <details class="preview" open>
+            <summary>完整 JML 预览 <span class="muted">只读绑定产物</span></summary>
+            <textarea id="submission" spellcheck="false" readonly aria-label="完整 JML 预览"></textarea>
+          </details>
+          <div class="action-row">
+            <label>反馈深度
+              <select id="mode"><option value="hint">提示 · 一个优先问题</option><option value="review">讲解 · 已判定问题</option></select>
+            </label>
+            <button id="submit-button" class="primary-button" type="button">提交审查 <span>→</span></button>
+          </div>
         </div>
-        <div class="demo-controls">
-          <select id="consistency-case" aria-label="双一致性演示案例"></select>
-          <button id="consistency-button" class="primary-button" type="button">运行双检测</button>
+
+        <div id="validation-view" class="mode-view hidden">
+          <div class="validation-intro">
+            <div><span class="eyebrow">RUNTIME EVIDENCE</span><h3>实现验证与反例</h3></div>
+            <span class="scope-badge">教师配置案例</span>
+          </div>
+          <p class="validation-copy">这里运行受限的 <code>unfollowUser</code> 教学案例：系统枚举小规模前态，执行真实 RAC，再独立重跑确认违反项。它不是当前浏览器提交的任意 Java 沙箱。</p>
+          <div class="runtime-toolbar">
+            <label>验证案例<select id="runtime-case-select" aria-label="运行时验证案例"></select></label>
+            <button id="runtime-button" class="primary-button" type="button">搜索并确认反例 <span>→</span></button>
+          </div>
+          <div id="runtime-empty" class="runtime-empty"><div class="orbit">↯</div><p>点击“搜索并确认反例”，查看前态、实际后态、违反条款和复现证据。</p></div>
+          <div id="runtime-content" class="hidden">
+            <div id="runtime-summary"></div>
+            <div class="runtime-columns">
+              <section><div class="subheading"><span>候选输入</span><span class="muted">可选择查看详情</span></div><div id="runtime-candidates" class="runtime-candidates"></div></section>
+              <section id="runtime-detail" class="runtime-detail"></section>
+            </div>
+          </div>
         </div>
-      </div>
-      <div id="case-description" class="case-description"></div>
-      <div class="demo-workbench">
-        <article class="code-card">
-          <div><span>学生 JML · 核心语义</span><span id="case-expected"></span></div>
-          <pre><code id="case-jml"></code></pre>
-        </article>
-        <article class="code-card">
-          <div><span>学生 Java · 核心状态更新</span><span id="case-method-name"></span></div>
-          <pre><code id="case-java"></code></pre>
-        </article>
-        <section id="consistency-result" class="result-stage">
-          <div class="result-placeholder">选择案例后点击“运行双检测”</div>
-        </section>
-      </div>
+
+        <details id="consistency-demo" class="panel demo-box hidden">
+          <summary><span class="eyebrow">TEACHING CASE</span><strong>双一致性教学演示</strong><span class="muted">独立入口 · 题意→JML→Java</span></summary>
+          <div class="demo-heading">
+            <div><p>用于观察两个独立 Judge 的证据链，不与当前提交的评分结论混合。</p></div>
+            <div class="demo-controls"><select id="consistency-case" aria-label="双一致性演示案例"></select><button id="consistency-button" class="primary-button" type="button">运行双检测</button></div>
+          </div>
+          <div id="case-description" class="case-description"></div>
+          <div class="demo-workbench">
+            <article class="code-card"><div><span>学生 JML · 核心语义</span><span id="case-expected"></span></div><pre><code id="case-jml"></code></pre></article>
+            <article class="code-card"><div><span>学生 Java · 核心状态更新</span><span id="case-method-name"></span></div><pre><code id="case-java"></code></pre></article>
+            <section id="consistency-result" class="result-stage"><div class="result-placeholder">选择案例后点击“运行双检测”</div></section>
+          </div>
+        </details>
+      </section>
+
+      <aside class="panel results-panel">
+        <div class="panel-heading compact-heading">
+          <span class="eyebrow">03 · EVIDENCE</span>
+          <h2>结果与问题</h2>
+        </div>
+        <div id="empty-feedback" class="empty-state"><div class="orbit">?</div><p>填写后提交。问题、静态状态和学习建议会在这里汇合。</p></div>
+        <div id="checking" class="checking hidden"><span></span><span></span><span></span><p>正在核对需求、接口与规格…</p></div>
+        <div id="feedback-content" class="feedback-content hidden"></div>
+        <div id="history" class="history"></div>
+      </aside>
+    </div>
+
+    <section class="panel history-panel">
+      <div class="history-heading"><div><span class="eyebrow">04 · TRACE</span><h2>提交与工具轨迹</h2></div><span id="trace-summary" class="muted">本地会话 · 尚无提交</span></div>
+      <div id="trace-list" class="trace-list"><div class="trace-empty">提交一个版本后，这里会显示版本号、输入指纹状态和结果是否仍与当前草稿一致。</div></div>
     </section>
   </main>
-  <script src="/app.js" defer></script>
+  <script src="/app.js?v=workbench-2" defer></script>
 </body>
 </html>

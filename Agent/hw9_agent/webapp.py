@@ -28,6 +28,22 @@ COACH_VERDICTS = {
 }
 
 
+def default_openjml() -> str:
+    """Return the local OpenJML command used by the optional demo chain.
+
+    OPENJML is intentionally an environment/configuration concern: the demo
+    may run a native executable, a WSL installation, or no verifier at all.
+    The Windows default preserves the repository's existing WSL installation
+    while allowing other machines to override it without editing source.
+    """
+    configured = os.environ.get("OPENJML", "").strip()
+    if configured:
+        return configured
+    if os.name == "nt":
+        return "wsl:/home/ranye/.local/openjml-21.0.27/openjml"
+    return "openjml"
+
+
 def _coach_format_error() -> dict[str, Any]:
     """Return safe UI content when the model ignores its JSON contract."""
     return {
@@ -127,11 +143,13 @@ class ExerciseWebApp:
         exercise_dir: Path,
         model: str,
         base_url: str,
+        openjml: str | None = None,
     ) -> None:
         self.project_root = project_root
         self.bundle = ExerciseBundle.load(exercise_dir)
         self.model = model
         self.base_url = base_url
+        self.openjml = (openjml or default_openjml()).strip()
         self.static_dir = project_root / "web"
         suite_value = self.bundle.config.get("semantic_suite")
         self.semantic_suite = (
@@ -148,6 +166,24 @@ class ExerciseWebApp:
             project_root.parent / "judge-2027" / "unit3" / "spec_judge"
             / "examples" / "FollowUserEscDemo.java"
         )
+        self.runtime_entry = (
+            project_root.parent / "judge-2027" / "unit3" / "spec_judge" / "runtime_verifier.py"
+        )
+        self.runtime_suite = (
+            project_root.parent / "judge-2027" / "unit3" / "spec_judge" / "suites"
+            / "NetworkInterface" / "unfollowUser" / "suite.yaml"
+        )
+        self.runtime_reference = self.runtime_suite.parent / "reference.java"
+        self.runtime_demo_java = (
+            project_root.parent / "judge-2027" / "unit3" / "spec_judge"
+            / "examples" / "UnfollowUserRuntimeDemoMissingInverse.java"
+        )
+        self.runtime_demo_case = {
+            "id": "unfollow-missing-inverse",
+            "label": "unfollowUser · 漏更新粉丝关系",
+            "method": "unfollowUser",
+            "description": "教师配置的真实 RAC 反例教学案例：实现只更新了关注方，没有同步更新粉丝方。",
+        }
 
     def public_exercise(self) -> dict[str, Any]:
         samples = []
@@ -169,6 +205,20 @@ class ExerciseWebApp:
             "requirement": self.bundle.requirement,
             "template": self.bundle.template,
             "samples": samples,
+            "workbench": {
+                "modes": ["practice", "validation"],
+                "tool_status": "OpenJML 入口已配置；运行时结论仍需点击验证",
+                "runtime_validation": {
+                    **self.runtime_demo_case,
+                    "available": all(path.is_file() for path in (
+                        self.runtime_entry,
+                        self.runtime_suite,
+                        self.runtime_reference,
+                        self.runtime_demo_java,
+                    )),
+                    "kind": "teacher_demo",
+                },
+            },
             "consistency_demo_cases": [
                 {key: item[key] for key in (
                     "id", "label", "description", "jml_excerpt", "java_excerpt", "expected",
@@ -194,8 +244,9 @@ class ExerciseWebApp:
                 "--requirement-ir", str(requirement_ir),
                 "--student-jml", str(student_jml),
                 "--student-java", str(self.consistency_demo_java),
-                "--openjml", "wsl:/home/ranye/.local/openjml-21.0.27/openjml",
+                "--openjml", self.openjml,
                 f"--openjml-arg=--method={case['implementation_method']}",
+                "--embedded-java-contract",
             ],
             capture_output=True,
             text=True,
@@ -211,6 +262,52 @@ class ExerciseWebApp:
             "case": {key: case[key] for key in (
                 "id", "label", "description", "jml_excerpt", "java_excerpt", "expected",
             )},
+            "result": result,
+        }
+
+    def runtime_demo(self, case_id: str) -> dict[str, Any]:
+        """Run the single configured runtime case without accepting paths.
+
+        This endpoint is deliberately a teacher-owned demonstration. It is not
+        a general Java sandbox and never executes browser-provided source.
+        """
+        if case_id != self.runtime_demo_case["id"]:
+            raise ValueError("未知的运行时反例教学案例")
+        assets = (
+            self.runtime_entry,
+            self.runtime_suite,
+            self.runtime_reference,
+            self.runtime_demo_java,
+        )
+        if not all(path.is_file() for path in assets):
+            raise ValueError("运行时反例教学资产不完整")
+        try:
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(self.runtime_entry),
+                    "--suite", str(self.runtime_suite),
+                    "--student-jml", str(self.runtime_reference),
+                    "--student-java", str(self.runtime_demo_java),
+                    "--openjml", self.openjml,
+                    "--timeout", "20",
+                ],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                timeout=150,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as error:
+            raise ValueError("运行时反例搜索超时；请检查 OpenJML 配置") from error
+        try:
+            result = json.loads(completed.stdout)
+        except json.JSONDecodeError as error:
+            raise ValueError(completed.stderr.strip() or "运行时验证器未返回有效结果") from error
+        if not isinstance(result, dict):
+            raise ValueError("运行时验证器返回格式错误")
+        return {
+            "case": {**self.runtime_demo_case, "kind": "teacher_demo"},
             "result": result,
         }
 
@@ -370,6 +467,9 @@ def make_handler(app: ExerciseWebApp):
                     return
                 if self.path == "/api/demo-consistency":
                     self._json(app.demo_consistency(str(data.get("case_id", ""))))
+                    return
+                if self.path == "/api/runtime-demo":
+                    self._json(app.runtime_demo(str(data.get("case_id", ""))))
                     return
                 self._json({"error": "not found"}, HTTPStatus.NOT_FOUND)
             except (ValueError, json.JSONDecodeError) as exc:

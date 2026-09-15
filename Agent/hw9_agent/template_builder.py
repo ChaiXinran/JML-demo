@@ -128,7 +128,13 @@ def _public_symbols(source: str, method_name: str) -> list[str]:
 
 
 def _semantic_suite_path(semantic_suite: Path, method_name: str) -> str:
-    """Validate a server-side suite and store its path relative to Agent/."""
+    """Validate a server-side suite and store a path usable by the Web app.
+
+    Repository-local suites are stored relative to Agent/ so generated
+    exercises remain portable.  A caller may still keep a private suite on a
+    different Windows volume for local testing; in that case relpath cannot be
+    represented and an absolute path is the only unambiguous local reference.
+    """
     if not semantic_suite.is_file():
         raise FileNotFoundError(f"Semantic suite does not exist: {semantic_suite}")
     try:
@@ -140,8 +146,8 @@ def _semantic_suite_path(semantic_suite: Path, method_name: str) -> str:
     project_root = Path(__file__).resolve().parent.parent
     try:
         relative = os.path.relpath(semantic_suite.resolve(), project_root)
-    except ValueError as error:
-        raise ValueError("Semantic suite must be on the same filesystem as Agent/") from error
+    except ValueError:
+        return semantic_suite.resolve().as_posix()
     return Path(relative).as_posix()
 
 

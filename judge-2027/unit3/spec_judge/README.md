@@ -2,7 +2,7 @@
 
 第一次添加测试点或新方法，请先看 [手把手使用说明](USAGE.md)；它提供完整的文件示例、逐步命令与排错顺序。
 
-本目录只负责比较“参考 JML”和“学生 JML”在指定抽象状态上的语义是否一致，不运行学生 Java，也不替代 OpenJML。当前正式入口是 `semantic_check.py`；`spec_judge.py` 是早期回归原型，`consistency_judge.py` 中的 JML–Java 链不属于本评测核心。
+本目录的正式评分入口 `semantic_check.py` 负责比较“参考 JML”和“学生 JML”在指定抽象状态上的语义一致性，不运行学生 Java。另有 `consistency_judge.py` 用于需要时的双链检查：它可将学生 JML 临时绑定到目标 Java 方法后调用 OpenJML，并返回可追溯的验证会话证据；这条链不替代本目录的 JML–JML suite，也不把未证明直接等同于实现错误。`runtime_verifier.py` 在第二阶段 2A＋2B 中为受限的 `unfollowUser` Java 适配器增加 RAC 编译、确定性小规模枚举、前后态观察和独立重跑确认；它同样不把有限范围内未找到反例当作正确性证明。`spec_judge.py` 是早期回归原型。
 
 ## 1. 当前能力和保证范围
 
@@ -13,6 +13,20 @@
 - `NetworkInterface.canInteract`：给网络 Profile 增加 `blocked/isBlocked` 关系；
 - `NetworkInterface.unfollowUser`：独立方法目录中的新练习，已接入 Web；
 - `CounterInterface.checkNonNegative`：独立标量 Profile 和无参数方法。
+
+第二阶段的运行反例入口目前只支持教师本地执行：
+
+```bash
+python3 runtime_verifier.py \
+  --suite suites/NetworkInterface/unfollowUser/suite.yaml \
+  --student-jml suites/NetworkInterface/unfollowUser/reference.java \
+  --student-java examples/UnfollowUserRuntimeDemo.java \
+  --openjml wsl:/home/ranye/.local/openjml-21.0.27/openjml
+```
+
+输出同时包含 `static_status` 和 `replay_status`、受限规格支持清单、搜索统计、候选输入、
+实际前后态、违反条款和 `session` 证据。当前候选生成、`unfollowUser` 适配器及 RAC 执行均是
+明确的窄接口；任意 ZIP、任意对象图、反例缩减、Web 任务入口和 `followUser` 运行检查不在本里程碑内。
 
 其中 `followUser` 使用：
 

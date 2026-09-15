@@ -9,6 +9,7 @@ from consistency_judge import (
     check_jml_java,
     check_nl_jml,
     combined_verdict,
+    evaluate_consistency,
 )
 
 
@@ -58,6 +59,77 @@ class ConsistencyJudgeTest(unittest.TestCase):
         result = check_jml_java(Path("Student.java"))
         self.assertEqual("UNKNOWN", result.verdict)
         self.assertEqual("OPENJML_ANALYSIS_ERROR", result.diagnostics[0]["code"])
+
+    def test_submitted_jml_is_bound_to_target_before_openjml(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            student_jml = root / "NetworkInterface.java"
+            student_jml.write_text(self.correct.read_text(encoding="utf-8"), encoding="utf-8")
+            student_java = root / "Student.java"
+            student_java.write_text(
+                "public class Student {\n"
+                "  public void followUser(int id1, int id2) { }\n"
+                "}\n",
+                encoding="utf-8",
+            )
+            observed = {}
+
+            def run(command, **_kwargs):
+                observed["command"] = command
+                observed["source"] = Path(command[-1]).read_text(encoding="utf-8")
+                class Completed:
+                    returncode = 0
+                    stdout = ""
+                    stderr = ""
+                return Completed()
+
+            with patch("consistency_judge.subprocess.run", side_effect=run):
+                result = check_jml_java(
+                    student_java,
+                    student_jml_path=student_jml,
+                    method_name="followUser",
+                )
+        self.assertEqual("PASS", result.verdict)
+        self.assertEqual("injected_contract", result.evidence["binding"]["mode"])
+        self.assertIn("--method=followUser", observed["command"])
+        self.assertIn("requires containsUser(id1)", observed["source"])
+        self.assertIn("public void followUser(int id1, int id2)", observed["source"])
+        binding = result.evidence["binding"]
+        self.assertEqual("id1", binding["parameter_mapping"][0]["java_name"])
+        self.assertEqual("student_java", binding["source_map"]["target_java_method"]["source"])
+        self.assertEqual("bound_java", binding["source_map"]["bound_contract"]["source"])
+
+    def test_binding_failure_is_unknown_and_does_not_run_openjml(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            student_jml = root / "NetworkInterface.java"
+            student_jml.write_text(self.correct.read_text(encoding="utf-8"), encoding="utf-8")
+            student_java = root / "Student.java"
+            student_java.write_text("public class Student {}\n", encoding="utf-8")
+            with patch("consistency_judge.subprocess.run") as run:
+                result = check_jml_java(
+                    student_java,
+                    student_jml_path=student_jml,
+                    method_name="followUser",
+                )
+        self.assertEqual("UNKNOWN", result.verdict)
+        self.assertEqual("JML_JAVA_BINDING_ERROR", result.diagnostics[0]["code"])
+        run.assert_not_called()
+
+    def test_consistency_result_contains_reproducible_session_metadata(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            java = root / "Student.java"
+            java.write_text("public class Student { public void followUser(int a, int b) {} }", encoding="utf-8")
+            with patch("consistency_judge.subprocess.run") as run:
+                run.return_value.returncode = 0
+                run.return_value.stdout = ""
+                run.return_value.stderr = ""
+                result = evaluate_consistency(self.ir, self.correct, java)
+        self.assertIn("session", result)
+        self.assertEqual("followUser", result["session"]["method"])
+        self.assertEqual(64, len(result["session"]["inputs"]["student_jml_sha256"]))
+        self.assertEqual([], result["overall_evidence"]["known_failures"])
 
     @patch("consistency_judge.subprocess.run")
     def test_wsl_openjml_converts_windows_source_path(self, run):

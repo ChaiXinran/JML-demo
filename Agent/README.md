@@ -143,9 +143,34 @@ python -m hw9_agent consistency `
 结果分别位于 `nl_jml` 和 `jml_java`，不会因为 Java 满足一份错误或过弱的学生规格
 而给出整体通过。OpenJML 不可用、超时或需求 IR 未批准时返回 `UNKNOWN`。
 
+默认情况下，C2 会从 `--student-jml` 中提取目标方法前的 `/*@ ... @*/` 合同块，写入一次性临时
+Java 源文件后再调用 OpenJML；原始学生文件不会被改写。结果中的 `jml_java.evidence.binding`
+会记录绑定方式、合同哈希和工具诊断。若 Java 文件含有多个练习方法，目标方法会自动作为 OpenJML
+范围。仅用于旧的内嵌合同演示时才使用 `--embedded-java-contract`；它不验证 `--student-jml`，
+不能替代提交级绑定检查。
+
 `--openjml` 接受原生 Windows 可执行文件，也接受 `wsl:/absolute/linux/path`
 形式的 WSL 安装。Agent 会自动把学生 Java 的 Windows 路径转换为
 `/mnt/<drive>/...`。
+
+### 第二阶段 2A＋2B：unfollowUser 运行反例
+
+教师可对符合受限 `unfollowUser` 适配器形状的 Java 实现执行真实 RAC 搜索：
+
+```powershell
+python -m hw9_agent counterexample `
+  --suite "../judge-2027/unit3/spec_judge/suites/NetworkInterface/unfollowUser/suite.yaml" `
+  --student-jml "学生提交NetworkInterface.java" `
+  --student-java "学生提交Network.java" `
+  --openjml "wsl:/home/ranye/.local/openjml-21.0.27/openjml"
+```
+
+该命令使用同一套提交级 JML 绑定先做 ESC，再枚举最多 3 个用户规模的合法前态，
+用 RAC 编译并执行目标方法。每个候选都记录参数、前态、实际后态、异常、绑定映射和工具指纹；
+发现后还会在新的临时执行目录独立重跑，只有再次命中同一违反项才标记为
+`replay_status: REPRODUCED`。`NOT_FOUND_WITHIN_BOUNDS` 只表示本次有限搜索没有找到反例，
+不表示实现已被证明正确。当前只支持教师侧、本地的 `unfollowUser`；尚未新增 Web 任务入口、
+反例缩减或 `followUser` 运行适配器。
 
 教师 rubric 位于 `staff/rubrics/`，正确填写样例也只保留在 `staff/`。学生练习服务不会
 读取、返回或发送这些资产；正式评分必须由独立的确定性规格验证器产生。
@@ -157,6 +182,7 @@ python -m hw9_agent consistency `
 
 python -m hw9_agent web `
   --exercise-dir "exercises\follow_user" `
+  --openjml "wsl:/home/ranye/.local/openjml-21.0.27/openjml" `
   --port 8000
 ```
 
@@ -164,6 +190,7 @@ python -m hw9_agent web `
 提示/讲解模式、多轮提交记录和一键重置。模型只接收公开题面、模板、允许符号、公开反馈契约、
 学生提交和已判定的诊断；服务器端参考规格与 rubric 不会发送给浏览器或模型。
 从仓库根目录开始的 Windows/macOS/Linux 启动方式和密钥行为，详见[根 README 第 11 节](../README.md#11-学生侧web-界面)。当前页面“提交审查”在无密钥时直接显示确定性评分；有密钥时才追加模型学习建议。`POST /api/check` 仍可供程序单独调用。
+页面中的“双一致性案例工作台”会调用 OpenJML；路径可通过 `--openjml` 或 `OPENJML` 环境变量指定，支持原生可执行文件和 `wsl:/absolute/linux/path`。运行后可展开验证会话查看输入指纹、绑定摘要和 OpenJML 定位。该工作台的旧案例仍使用 Java 内嵌合同；正式命令行一致性检查默认使用提交级 JML 绑定。普通“提交审查”仍只进行 JML–JML 规格评分。
 
 ## 教师侧规格审计
 

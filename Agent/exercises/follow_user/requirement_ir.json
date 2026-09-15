@@ -27,7 +27,8 @@
         "expression": "(* output-> \"follow_user succeeded\" *)"
       }
     ],
-    "assignable": ["users[*]", "\\nothing"],
+    "assignable": ["users[*]"],
+    "exceptional_assignable": ["\\nothing"],
     "signals": [
       {
         "id": "FIRST_USER_MISSING",

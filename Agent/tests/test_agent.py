@@ -14,7 +14,7 @@ from hw9_agent.exercise import (
     build_review_prompt,
     deterministic_check,
 )
-from hw9_agent.webapp import ExerciseWebApp, parse_coach_feedback
+from hw9_agent.webapp import ExerciseWebApp, default_openjml, parse_coach_feedback
 from hw9_agent.template_builder import build_exercise_package, build_template
 
 
@@ -270,6 +270,68 @@ class AgentTest(unittest.TestCase):
         self.assertNotIn("feedback", result)
         self.assertEqual("NEEDS_REVISION", result["coach"]["verdict"])
         self.assertEqual("FORWARD_POSTCONDITION", result["coach"]["issues"][0]["location"])
+
+    def test_web_consistency_demo_uses_configured_openjml_command(self):
+        project_root = Path(__file__).resolve().parent.parent
+        app = ExerciseWebApp(
+            project_root=project_root,
+            exercise_dir=project_root / "exercises" / "follow_user",
+            model="deepseek-chat",
+            base_url="https://api.deepseek.com",
+            openjml="wsl:/home/test/openjml",
+        )
+        with patch("hw9_agent.webapp.subprocess.run") as run:
+            run.return_value.stdout = json.dumps({"overall": "PASS"})
+            run.return_value.stderr = ""
+            run.return_value.returncode = 0
+            result = app.demo_consistency("all-correct")
+        self.assertEqual("PASS", result["result"]["overall"])
+        command = run.call_args.args[0]
+        self.assertIn("--openjml", command)
+        self.assertIn("wsl:/home/test/openjml", command)
+
+    def test_web_workbench_exposes_runtime_capability_without_server_paths(self):
+        project_root = Path(__file__).resolve().parent.parent
+        app = ExerciseWebApp(
+            project_root=project_root,
+            exercise_dir=project_root / "exercises" / "follow_user",
+            model="deepseek-chat",
+            base_url="https://api.deepseek.com",
+        )
+        payload = app.public_exercise()
+        runtime = payload["workbench"]["runtime_validation"]
+        self.assertTrue(runtime["available"])
+        self.assertEqual("teacher_demo", runtime["kind"])
+        self.assertNotIn("runtime_entry", json.dumps(payload))
+        self.assertNotIn("student_java", json.dumps(runtime))
+
+    def test_web_runtime_demo_uses_only_configured_case_and_openjml(self):
+        project_root = Path(__file__).resolve().parent.parent
+        app = ExerciseWebApp(
+            project_root=project_root,
+            exercise_dir=project_root / "exercises" / "follow_user",
+            model="deepseek-chat",
+            base_url="https://api.deepseek.com",
+            openjml="wsl:/home/test/openjml",
+        )
+        with patch("hw9_agent.webapp.subprocess.run") as run:
+            run.return_value.stdout = json.dumps({
+                "static_status": "UNPROVED",
+                "replay_status": "NOT_FOUND_WITHIN_BOUNDS",
+                "results": [],
+            })
+            run.return_value.stderr = ""
+            run.return_value.returncode = 0
+            result = app.runtime_demo("unfollow-missing-inverse")
+        self.assertEqual("UNPROVED", result["result"]["static_status"])
+        command = run.call_args.args[0]
+        self.assertIn("runtime_verifier.py", command[1])
+        self.assertIn("--student-java", command)
+        self.assertIn("wsl:/home/test/openjml", command)
+
+    def test_default_openjml_honors_environment_override(self):
+        with patch.dict("os.environ", {"OPENJML": "openjml-custom"}):
+            self.assertEqual("openjml-custom", default_openjml())
 
     def test_invalid_model_text_becomes_safe_structured_coach_feedback(self):
         coach = parse_coach_feedback("verdict: NEEDS_REVISION\nnext_step: try again")

@@ -14,7 +14,7 @@ from .exercise import ExerciseBundle, build_review_prompt, deterministic_check, 
 from .parser import load_hw9_catalog
 from .pipeline import run_pipeline
 from .template_builder import build_exercise_package, build_template_file
-from .webapp import ExerciseWebApp, serve
+from .webapp import ExerciseWebApp, default_openjml, serve
 
 
 def _all_methods(catalog):
@@ -86,15 +86,38 @@ def main() -> None:
     consistency_parser.add_argument("--student-jml", required=True)
     consistency_parser.add_argument("--student-java", required=True)
     consistency_parser.add_argument("--method")
-    consistency_parser.add_argument("--openjml", default="openjml")
+    consistency_parser.add_argument("--openjml", default=os.environ.get("OPENJML", "openjml"))
     consistency_parser.add_argument("--timeout", type=int, default=60)
     consistency_parser.add_argument("--openjml-arg", action="append", default=[])
+    consistency_parser.add_argument(
+        "--embedded-java-contract",
+        action="store_true",
+        help="legacy demo mode: verify the contract already embedded in student-java",
+    )
+    counterexample_parser = sub.add_parser(
+        "counterexample",
+        help="在受限 Java 适配器上搜索并确认 unfollowUser 运行反例",
+    )
+    counterexample_parser.add_argument("--suite", required=True)
+    counterexample_parser.add_argument("--student-jml", required=True)
+    counterexample_parser.add_argument("--student-java", required=True)
+    counterexample_parser.add_argument(
+        "--openjml",
+        default=default_openjml(),
+        help="OpenJML 命令；支持 wsl:/absolute/path",
+    )
+    counterexample_parser.add_argument("--timeout", type=int, default=10)
     web_parser = sub.add_parser("web", help="start the local JML learning web interface")
     web_parser.add_argument("--exercise-dir", required=True)
     web_parser.add_argument("--host", default="127.0.0.1")
     web_parser.add_argument("--port", type=int, default=8000)
     web_parser.add_argument("--model", default=os.environ.get("DEEPSEEK_MODEL", "deepseek-chat"))
     web_parser.add_argument("--base-url", default=os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com"))
+    web_parser.add_argument(
+        "--openjml",
+        default=default_openjml(),
+        help="OpenJML command for the optional双一致性案例工作台; supports wsl:/absolute/path",
+    )
     args = parser.parse_args()
 
     if args.command == "consistency":
@@ -115,6 +138,25 @@ def main() -> None:
             command.extend(("--method", args.method))
         for value in args.openjml_arg:
             command.append(f"--openjml-arg={value}")
+        if args.embedded_java_contract:
+            command.append("--embedded-java-contract")
+        completed = subprocess.run(command, check=False)
+        raise SystemExit(completed.returncode)
+
+    if args.command == "counterexample":
+        entry = (
+            Path(__file__).resolve().parents[2]
+            / "judge-2027" / "unit3" / "spec_judge" / "runtime_verifier.py"
+        )
+        command = [
+            sys.executable,
+            str(entry),
+            "--suite", args.suite,
+            "--student-jml", args.student_jml,
+            "--student-java", args.student_java,
+            "--openjml", args.openjml,
+            "--timeout", str(args.timeout),
+        ]
         completed = subprocess.run(command, check=False)
         raise SystemExit(completed.returncode)
 
@@ -209,6 +251,7 @@ def main() -> None:
             exercise_dir=Path(args.exercise_dir),
             model=args.model,
             base_url=args.base_url,
+            openjml=args.openjml,
         )
         serve(app, args.host, args.port)
         return
