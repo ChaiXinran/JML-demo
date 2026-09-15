@@ -62,3 +62,56 @@ LLM 不参与评测，保证评测可解释和正确。
   - 第一阶段发布挖空的官方包，由学生填写 JML 后评测
   - 第二阶段学生根据自己补全的 JML 完成 Java
 - 上机实验？
+
+---
+
+
+# 0916 Report
+
+## JML 一致性评测
+
+目前确立的方法是数据点评测，具体规则如下：
+
+1. 准备一个正确实现的 JML
+2. 准备一份 Profile。Profile 包括 JML 中要使用的方法的具体定义
+3. 准备待评测的 JML
+4. 准备数据点。数据点包括：
+   - 前态：比如 userId，user1 关注 user2 等
+   - 后态：比如 user2 也关注了 user1 等
+5. 评测：对于同一个前后态测试点，如果正确 JML 和待评测 JML 结果一致，则认为通过
+
+> 即，可以构造一些错误的前后态，要求两个 JML 均不通过；构造一些正确的前后态，要求两个 JML 均通过
+
+
+现已可以通过写 YAML 的形式在 `NetworkInterface` 范围内出新题。
+
+## Profile 与评测
+
+1. 从参考 Java 和学生 Java 中找到目标方法前的 JML 块。
+2. 解析 `requires`、`ensures`、`signals` 和 `assignable`
+3. 选择 Profile 和测试点
+4. **Profile 将 JML 方法调用解释为抽象状态查询**
+5. 在相同测试点上分别计算参考子句和学生子句
+6. 真值不一致时产生确定性诊断，并按“区域权重 × 测试点通过比例”计分
+
+```mermaid
+flowchart LR
+  A[标准 JML] --> C[通用 JML 解析器]
+  B[学生 JML] --> C
+  C --> D[通用评测器]
+  E[同一测试点：参数、前态、后态] --> D
+  F[Profile：状态与查询方法的含义] --> D
+  D --> G[比较两份 JML 对每个点的判断并评分]
+```
+
+Profile 具体来说是用 Python 实现了 JML 中会出现的方法（比如 `containsUser`）并规定它们的含义。评测器对每个方法询问 Profile 获取语义，计算真值，最后出结果。
+
+## 评测推送前端
+
+新题可以方便推到前端。
+
+```bash
+cd Agent
+
+python3 -m hw9_agent web --exercise-dir exercises/unfollow_user --host 127.0.0.1 --port 8000
+```
