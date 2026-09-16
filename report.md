@@ -72,7 +72,7 @@ LLM 不参与评测，保证评测可解释和正确。
 
 目前确立的方法是数据点评测，具体规则如下：
 
-1. 准备一个正确实现的 JML
+1. 准备一个参考 JML
 2. 准备一份 Profile。Profile 包括 JML 中要使用的方法的具体定义
 3. 准备待评测的 JML
 4. 准备数据点。数据点包括：
@@ -115,3 +115,10 @@ cd Agent
 
 python3 -m hw9_agent web --exercise-dir exercises/unfollow_user --host 127.0.0.1 --port 8000
 ```
+
+## JML - Java 验证
+
+1. 将学生提交的 JML 临时绑定到目标 Java
+2. 使用 OpenJML ESC 检查 Java 是否满足该规格（静态检测）
+3. 对方法（目前只有 `followUser` 和 `unfollowUser`）生成有限候选前态
+4. 使用 RAC 执行并观察实际后态（动态检测）
