@@ -3,138 +3,179 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>HW9 · JML 规格学习工作台</title>
-  <meta name="description" content="围绕当前提交、规格问题、验证证据和反例的 JML 学习工作台。">
-  <link rel="stylesheet" href="/styles.css?v=workbench-4">
-  <link rel="stylesheet" href="/demo.css">
+  <title>HW9 规格检查</title>
+  <link rel="stylesheet" href="/styles.css?v=submission-flow-5">
+  <link rel="stylesheet" href="/demo.css?v=submission-flow-5">
 </head>
 <body>
   <header class="topbar">
-    <div class="brand"><span class="mark">J</span><span>HW9 规格学习工作台</span></div>
-    <div class="topbar-context">
-      <span class="method-chip" id="method-name">正在载入题目</span>
-      <span class="tool-status"><span class="dot"></span><span id="tool-status">服务准备中</span></span>
-    </div>
+    <a class="brand" href="#submit-panel" aria-label="回到提交检查">
+      <span class="brand-mark">J</span>
+      <span>HW9 规格检查</span>
+    </a>
+    <nav class="top-nav" aria-label="页面导航">
+      <button class="nav-link active" data-scroll="submit-panel">提交检查</button>
+      <button class="nav-link" data-scroll="history-panel">历史记录</button>
+      <button class="nav-link" data-scroll="help-panel">帮助</button>
+    </nav>
+    <div class="tool-status"><span class="status-dot"></span><span id="tool-status">OpenJML 已配置</span></div>
   </header>
 
   <main class="page-shell">
-    <section class="modebar panel">
+    <section class="page-heading">
       <div>
-        <span class="eyebrow">HW9 · WORKBENCH</span>
-        <h1 id="exercise-title">JML 规格学习工作台</h1>
-        <p class="mode-intro">当前提交、当前问题和验证证据会在同一个工作区内联动。</p>
+        <p class="eyebrow">提交 · 检查 · 诊断</p>
+        <h1 id="exercise-title">加载练习中…</h1>
+        <p id="exercise-method" class="method-line"></p>
       </div>
-      <div class="mode-tabs" role="tablist" aria-label="工作模式">
-        <button class="mode-tab active" type="button" data-mode="practice" role="tab" aria-selected="true">规格练习</button>
-        <button class="mode-tab" type="button" data-mode="validation" role="tab" aria-selected="false">实现验证</button>
-      </div>
-      <div class="draft-state" id="draft-state">草稿 · 尚未提交</div>
+      <div class="heading-note">先提交规格，可再上传实现；点击检查，查看问题，必要时展开反例。</div>
     </section>
 
-    <div class="workbench">
-      <aside class="panel context-panel">
-        <div class="panel-heading compact-heading">
-          <span class="eyebrow">01 · CONTEXT</span>
-          <h2>需求与约束</h2>
-        </div>
-        <article id="requirement" class="prose"></article>
-        <details class="context-details" open>
-          <summary>接口与作答边界</summary>
-          <ul>
-            <li>只填写标记出的 JML 空位，接口框架保持不变。</li>
-            <li>先区分适用条件，再描述调用后的两个方向状态。</li>
-            <li>静态评测、运行复现和 Agent 讲解是三种不同证据。</li>
-          </ul>
-        </details>
-        <div class="clause-nav">
-          <div class="subheading"><span>条款导航</span><span class="muted">点击定位</span></div>
-          <button type="button" class="clause-link" data-jump="NORMAL_CONDITION"><span>01</span>正常执行条件</button>
-          <button type="button" class="clause-link" data-jump="FORWARD_POSTCONDITION"><span>02</span>关注关系后置条件</button>
-          <button type="button" class="clause-link" data-jump="INVERSE_POSTCONDITION"><span>03</span>粉丝关系后置条件</button>
-          <button type="button" class="clause-link" data-jump="SELF_FOLLOW"><span>04</span>边界与异常</button>
-        </div>
-        <div class="context-note"><strong>学习提示</strong><p>问题列表中的条款可以回到这里，再跳转到对应空位；编辑后旧结果会标记为过期。</p></div>
-      </aside>
-
-      <section class="panel center-panel">
-        <div class="panel-heading editor-heading">
+    <div class="content-grid">
+      <section id="submit-panel" class="panel submit-panel">
+        <div class="panel-heading">
           <div>
-            <span class="eyebrow" id="center-eyebrow">02 · WRITE</span>
-            <h2 id="center-title">填写当前规格</h2>
+            <p class="eyebrow">当前任务</p>
+            <h2>提交检查</h2>
           </div>
-          <div class="heading-actions">
-            <select id="sample-select" aria-label="载入演示样例"><option value="">载入演示样例…</option></select>
-            <button id="reset-button" class="ghost-button" type="button">重置</button>
-          </div>
+          <span id="draft-state" class="draft-state">草稿</span>
         </div>
 
-        <div id="practice-view" class="mode-view">
-          <div class="step-strip"><span class="step active">A · 填写</span><span>→</span><span class="step">B · 检查</span><span>→</span><span class="step">C · 修订</span></div>
-          <div id="blank-fields" class="blank-fields"></div>
-          <details class="preview" open>
-            <summary>完整 JML 预览 <span class="muted">只读绑定产物</span></summary>
-            <textarea id="submission" spellcheck="false" readonly aria-label="完整 JML 预览"></textarea>
+        <section class="task-card">
+          <div class="exercise-picker-block">
+            <label for="exercise-select">选择题目</label>
+            <select id="exercise-select" aria-label="选择题目"></select>
+            <span>切换题目会同步切换自然语言要求、规格模板、Java 模板和成套案例。</span>
+          </div>
+          <div class="task-card-heading">
+            <h3>题目要求</h3>
+          </div>
+          <select id="sample-select" class="hidden" aria-label="加载示例" tabindex="-1"><option value="">加载示例…</option></select>
+          <div id="requirement-short" class="requirement-short"></div>
+          <details>
+            <summary>查看完整要求</summary>
+            <div id="requirement" class="requirement-body"></div>
           </details>
-          <div class="action-row">
-            <label>反馈深度
-              <select id="mode"><option value="hint">提示 · 一个优先问题</option><option value="review">讲解 · 已判定问题</option></select>
-            </label>
-            <button id="submit-button" class="primary-button" type="button">提交审查 <span>→</span></button>
-          </div>
-        </div>
-
-        <div id="validation-view" class="mode-view hidden">
-          <div class="validation-intro">
-            <div><span class="eyebrow">RUNTIME EVIDENCE</span><h3>实现验证与反例</h3></div>
-            <span class="scope-badge">教师配置案例</span>
-          </div>
-          <p class="validation-copy">这里运行受限的 <code>unfollowUser</code> 教学案例：系统枚举小规模前态，执行真实 RAC，再独立重跑确认违反项。它不是当前浏览器提交的任意 Java 沙箱。</p>
-          <div class="runtime-toolbar">
-            <label>验证案例<select id="runtime-case-select" aria-label="运行时验证案例"></select></label>
-            <button id="runtime-button" class="primary-button" type="button">搜索并确认反例 <span>→</span></button>
-          </div>
-          <div id="runtime-empty" class="runtime-empty"><div class="orbit">↯</div><p>点击“搜索并确认反例”，查看前态、实际后态、违反条款和复现证据。</p></div>
-          <div id="runtime-content" class="hidden">
-            <div id="runtime-summary"></div>
-            <div class="runtime-columns">
-              <section><div class="subheading"><span>候选输入</span><span class="muted">可选择查看详情</span></div><div id="runtime-candidates" class="runtime-candidates"></div></section>
-              <section id="runtime-detail" class="runtime-detail"></section>
+          <div id="upload-case-loader" class="case-loader hidden">
+            <div>
+              <strong>选择配套案例</strong>
+              <span>案例保持当前题目要求不变，同时载入与该题配套的 JML 和 Java。</span>
+            </div>
+            <div class="case-loader-actions">
+              <select id="upload-case-select" aria-label="选择成套案例"></select>
+              <button id="load-upload-case" class="button secondary-button" type="button">载入案例</button>
             </div>
           </div>
-        </div>
+        </section>
 
-        <details id="consistency-demo" class="panel demo-box hidden">
-          <summary><span class="eyebrow">TEACHING CASE</span><strong>双一致性教学演示</strong><span class="muted">独立入口 · 题意→JML→Java</span></summary>
-          <div class="demo-heading">
-            <div><p>用于观察两个独立 Judge 的证据链，不与当前提交的评分结论混合。</p></div>
-            <div class="demo-controls"><select id="consistency-case" aria-label="双一致性演示案例"></select><button id="consistency-button" class="primary-button" type="button">运行双检测</button></div>
+        <section class="form-section" id="jml-section">
+          <div class="section-heading">
+            <div>
+              <h3>JML 规格 <span class="required">必填</span></h3>
+              <p>填写模板、粘贴规格，或导入已有的 JML 源文件。</p>
+            </div>
+            <span id="spec-status" class="inline-status">未完成</span>
           </div>
-          <div id="case-description" class="case-description"></div>
-          <div class="demo-workbench">
-            <article class="code-card"><div><span>学生 JML · 核心语义</span><span id="case-expected"></span></div><pre><code id="case-jml"></code></pre></article>
-            <article class="code-card"><div><span>学生 Java · 核心状态更新</span><span id="case-method-name"></span></div><pre><code id="case-java"></code></pre></article>
-            <section id="consistency-result" class="result-stage"><div class="result-placeholder">选择案例后点击“运行双检测”</div></section>
+          <div class="input-tabs" role="tablist" aria-label="JML 输入方式">
+            <button class="input-tab active" data-jml-mode="template" role="tab">填写模板</button>
+            <button class="input-tab" data-jml-mode="paste" role="tab">粘贴规格</button>
+            <button class="input-tab" data-jml-mode="file" role="tab">导入文件</button>
           </div>
-        </details>
+          <div id="jml-template-pane" class="input-pane">
+            <div id="blank-fields" class="blank-fields"></div>
+          </div>
+          <div id="jml-paste-pane" class="input-pane hidden">
+            <textarea id="jml-paste" class="code-input" spellcheck="false" placeholder="粘贴包含目标方法和 JML 行为规格的 Java 源文件…"></textarea>
+          </div>
+          <div id="jml-file-pane" class="input-pane hidden">
+            <label class="file-picker">
+              <input id="jml-file" type="file" accept=".java,text/plain">
+              <span>选择 JML / Java 源文件</span>
+            </label>
+            <p id="jml-file-status" class="file-status">尚未导入文件。</p>
+          </div>
+          <div id="jml-import-status" class="form-message" aria-live="polite"></div>
+          <details class="source-preview">
+            <summary>查看当前规格源码</summary>
+            <textarea id="submission" class="code-input preview-input" readonly spellcheck="false"></textarea>
+          </details>
+        </section>
+
+        <section class="form-section" id="java-section">
+          <div class="section-heading">
+            <div>
+              <h3>Java 实现 <span class="optional">可选</span></h3>
+              <p>添加后，系统会检查实现是否满足当前规格；首版支持一个 Java 源文件。</p>
+            </div>
+            <span id="implementation-status" class="inline-status">未添加</span>
+          </div>
+          <div class="upload-actions">
+            <label class="button secondary-button">
+              <input id="java-file" type="file" accept=".java,text/plain">
+              上传 Java 文件
+            </label>
+            <button id="java-paste-toggle" class="button secondary-button" type="button">粘贴 Java 代码</button>
+            <button id="download-java-template" class="button text-button" type="button">下载实现模板</button>
+          </div>
+          <textarea id="java-paste" class="code-input hidden" spellcheck="false" placeholder="粘贴单文件 Java 实现…"></textarea>
+          <div id="java-meta" class="upload-meta">未添加 Java 实现。</div>
+          <div id="java-contract-choice" class="contract-choice hidden">
+            <label for="java-contract-source">代码中包含 JML。使用：</label>
+            <select id="java-contract-source">
+              <option value="page">当前规格</option>
+              <option value="embedded">代码内规格</option>
+            </select>
+          </div>
+          <button id="remove-java" class="text-button hidden" type="button">移除实现</button>
+        </section>
+
+        <div class="check-scope"><strong>本次检查：</strong>规格 <span id="scope-implementation">· 未添加实现</span><span> · 支持时自动搜索运行反例</span></div>
+        <button id="submit-button" class="primary-button" type="button">检查规格</button>
+        <div id="checking-panel" class="checking-panel hidden" aria-live="polite">
+          <div class="checking-title">正在检查</div>
+          <div id="checking-status" class="checking-status">准备检查材料…</div>
+          <div class="stage-list">
+            <span data-stage="material">检查材料</span>
+            <span data-stage="spec">检查规格</span>
+            <span data-stage="implementation">检查实现</span>
+            <span data-stage="runtime">搜索反例</span>
+            <span data-stage="complete">整理结果</span>
+          </div>
+        </div>
+        <div id="submit-message" class="form-message" aria-live="polite"></div>
       </section>
 
-      <aside class="panel results-panel">
-        <div class="panel-heading compact-heading">
-          <span class="eyebrow">03 · EVIDENCE</span>
-          <h2>结果与问题</h2>
+      <section id="results-panel" class="panel results-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">证据</p>
+            <h2>检查结果</h2>
+          </div>
+          <button id="back-to-submit" class="text-button" type="button">返回修改</button>
         </div>
-        <div id="empty-feedback" class="empty-state"><div class="orbit">?</div><p>填写后提交。问题、静态状态和学习建议会在这里汇合。</p></div>
-        <div id="checking" class="checking hidden"><span></span><span></span><span></span><p>正在核对需求、接口与规格…</p></div>
+        <div id="empty-feedback" class="empty-state">
+          <div class="empty-icon">J</div>
+          <h3>结果会显示在这里</h3>
+        <p>先提交 JML 规格。添加 Java 后，还会看到静态验证、运行诊断和可重跑的反例。</p>
+        </div>
         <div id="feedback-content" class="feedback-content hidden"></div>
-        <div id="history" class="history"></div>
-      </aside>
+      </section>
     </div>
 
-    <section class="panel history-panel">
-      <div class="history-heading"><div><span class="eyebrow">04 · TRACE</span><h2>提交与工具轨迹</h2></div><span id="trace-summary" class="muted">本地会话 · 尚无提交</span></div>
-      <div id="trace-list" class="trace-list"><div class="trace-empty">提交一个版本后，这里会显示版本号、输入指纹状态和结果是否仍与当前草稿一致。</div></div>
-    </section>
+    <details id="history-panel" class="panel history-panel">
+      <summary><span>历史记录</span><span class="summary-hint">保留最近几次提交</span></summary>
+      <div id="history-list" class="history-list"><p class="muted">还没有提交记录。</p></div>
+    </details>
+
+    <details id="help-panel" class="panel help-panel">
+      <summary>帮助</summary>
+      <div class="help-grid">
+        <div><strong>只检查规格</strong><p>不上传 Java 时，检查提交规格的结构和语义。</p></div>
+        <div><strong>检查实现</strong><p>上传单文件 Java 后，使用同一份提交规格进行静态检查；支持的题目再搜索运行反例。</p></div>
+        <div><strong>结果怎么读</strong><p>“范围内未找到反例”只表示有限搜索完成且没有确认违反；不支持、未执行和出错都会单独标注。</p></div>
+      </div>
+    </details>
   </main>
-  <script src="/app.js?v=workbench-2" defer></script>
+  <script src="/app.js?v=case-identity-1"></script>
 </body>
 </html>

@@ -116,6 +116,37 @@ class ConsistencyJudgeTest(unittest.TestCase):
         self.assertEqual("JML_JAVA_BINDING_ERROR", result.diagnostics[0]["code"])
         run.assert_not_called()
 
+    def test_course_model_contract_is_explicitly_adapted_for_array_fixture(self):
+        case = self.root / "Agent" / "case_library" / "complete" / "follow_user" / "A_correct"
+        observed = {}
+
+        def run(command, **_kwargs):
+            observed["source"] = Path(command[-1]).read_text(encoding="utf-8")
+            class Completed:
+                returncode = 0
+                stdout = ""
+                stderr = ""
+            return Completed()
+
+        with patch("consistency_judge.subprocess.run", side_effect=run):
+            result = check_jml_java(
+                case / "Java.java",
+                student_jml_path=case / "JML.java",
+                method_name="followUser",
+            )
+        kinds = {
+            item["kind"]
+            for item in result.evidence["binding"]["contract_adaptations"]
+        }
+        self.assertEqual("PASS", result.verdict)
+        self.assertEqual(
+            {"course_model_frame", "course_model_queries", "course_exception_partition"},
+            kinds,
+        )
+        self.assertIn("users[id1].following[id2]", observed["source"])
+        self.assertIn("signals_only DuplicateSubscriptionException", observed["source"])
+        self.assertNotIn("assignable users[*]", observed["source"])
+
     def test_consistency_result_contains_reproducible_session_metadata(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

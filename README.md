@@ -345,10 +345,10 @@ python -m hw9_agent exercise `
 
 ## 11. 学生侧：Web 界面
 
-从仓库根目录进入 `Agent/` 后启动本地服务。**不配置 DeepSeek 密钥也能使用“提交审查”查看确定性 JML 评分**；只有需要模型学习建议时才设置密钥。Windows PowerShell：
+从外层仓库根目录进入 Python 包目录 `Agent\Agent` 后启动本地服务。**不配置 DeepSeek 密钥也能完成规格和实现检查**；只有需要模型学习解释时才设置密钥。Windows PowerShell：
 
 ```powershell
-Set-Location "Agent"
+Set-Location "Agent\Agent"
 # 可选：需要模型学习建议时再设置真实密钥
 # $env:DEEPSEEK_API_KEY = "你的密钥"
 
@@ -359,29 +359,33 @@ python -m hw9_agent web `
   --port 8000
 ```
 
-macOS/Linux 终端（同样从仓库根目录开始）：
+macOS/Linux 终端（同样从外层仓库根目录开始）：
 
 ```bash
-cd Agent
+cd Agent/Agent
 # 可选：需要模型学习建议时再执行 export DEEPSEEK_API_KEY='你的密钥'
 python3 -m hw9_agent web --exercise-dir exercises/follow_user --host 127.0.0.1 --port 8000
 ```
 
 浏览器打开 <http://127.0.0.1:8000>，以 `Ctrl+C` 停止服务。
 
-页面功能包括：题面显示、逐空填写、模板预览、公开错误样例、hint/review 切换、多轮提交记录、重置。服务端接口为：
+页面现在围绕一条正式使用线组织：先填写、粘贴或导入 JML；可选上传/粘贴一个 Java 实现；点击“检查规格”或“开始检查”；在同一结果区查看规格状态、实现状态、问题定位和运行反例。页面还提供实现模板下载、最近提交记录，以及与当前提交完全分离的教学演示。
+
+Java 上传首版只接受一个不带 `package` 的 `.java` 源文件。页面会先显示类名、目标方法和兼容性；提交时规格检查与实现检查使用同一份 JML 快照。当前 `unfollowUser` 适配器支持运行反例搜索，`followUser` 先提供静态实现检查；“未找到反例”不表示已经证明正确。
+
+服务端接口为：
 
 | HTTP 方法与路径 | 用途 | 是否调用模型 |
 | --- | --- | --- |
 | `GET /health` | 健康检查 | 否 |
 | `GET /api/exercise` | 获取公开题面、模板、样例与反馈契约 | 否 |
+| `POST /api/preflight` | 预检 JML/Java 材料，返回可操作的兼容性信息 | 否 |
 | `POST /api/check` | 返回结构检查和确定性 JML 一致性评分/诊断 | 否 |
-| `POST /api/review` | 返回结构检查和确定性评分；配置密钥时再附加模型学习反馈 | 仅有密钥时 |
-| `POST /api/demo-consistency` | 运行预配置的旧双一致性演示；不是本 JML–JML 评分入口 | 否 |
+| `POST /api/review` | 检查当前规格；附带 Java 时追加实现证据和运行诊断 | 仅学习解释调用模型 |
+| `POST /api/demo-consistency` | 运行预配置的规格—实现一致性教学案例 | 否 |
+| `POST /api/runtime-demo` | 运行预配置的运行时反例教学案例 | 否 |
 
-Web 练习在服务器端通过 `exercise.json` 的 `semantic_suite` 选择一个 suite；现有 `follow_user` 和 `unfollow_user` 两个练习均已配置对应 Suite。启动后每个 Web 进程只服务其 `--exercise-dir` 指定的练习；要体验 `unfollow_user`，将上面的启动命令改为 `--exercise-dir exercises/unfollow_user`。页面“提交审查”调用 `/api/review`：无密钥时只显示结构检查和确定性评分/诊断，不请求模型；有密钥时按原流程追加模型建议。未填完空位时先提示补齐，不运行语义评测。`/api/check` 仍可供外部程序单独调用。要在 Web 上评测新方法，除创建 suite 外，还需创建对应学生练习包并配置 `semantic_suite`；详见[手把手使用说明](judge-2027/unit3/spec_judge/USAGE.md)第 9 节。不要把服务绑定到公网地址，除非另行完成认证、限流与密钥隔离。
-
-旧的“双一致性案例工作台”会额外调用 OpenJML；其路径可通过 Web 的 `--openjml` 参数或 `OPENJML` 环境变量配置，支持原生可执行文件和 `wsl:/absolute/linux/path`。运行后可展开验证会话查看输入指纹、绑定摘要和 OpenJML 定位。该工作台的旧案例仍使用 Java 内嵌合同；正式命令行一致性检查默认使用提交级 JML 绑定。普通“提交审查”仍只进行 JML–JML 规格评分。
+Web 练习在服务器端通过 `exercise.json` 的 `semantic_suite` 选择 suite；现有 `follow_user` 和 `unfollow_user` 两个练习均已配置对应 Suite。启动后每个 Web 进程只服务其 `--exercise-dir` 指定的练习；要体验 `unfollow_user`，将上面的启动命令改为 `--exercise-dir exercises\unfollow_user`。OpenJML 路径可通过 `--openjml` 或 `OPENJML` 配置，支持原生可执行文件和 `wsl:/absolute/linux/path`。不要把服务绑定到公网地址，除非另行完成认证、限流与密钥隔离。
 
 ## 12. JML–JML 一致性评测（按 suite 选择方法）
 

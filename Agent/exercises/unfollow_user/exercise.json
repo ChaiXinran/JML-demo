@@ -2,6 +2,7 @@
   "id": "unfollow_user",
   "title": "unfollowUser JML 填空练习",
   "method": "unfollowUser",
+  "implementation_template": "implementation_template.java",
   "allowed_modes": [
     "hint",
     "review"

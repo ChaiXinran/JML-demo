@@ -2,6 +2,7 @@
   "id": "hw9-follow-user-jml-fill",
   "title": "用 JML 描述双向关注关系",
   "method": "followUser",
+  "implementation_template": "implementation_template.java",
   "semantic_suite": "../judge-2027/unit3/spec_judge/suites/NetworkInterface/followUser/suite.yaml",
   "allowed_modes": ["hint", "review"],
   "default_mode": "hint",
@@ -67,6 +68,15 @@
       "expected": "C1 PASS · C2 FAIL",
       "student_jml": "staff/fixtures/follow_user_complete.java",
       "implementation_method": "followUserBroken"
+    }
+  ],
+  "consistency_demo_groups": [
+    {
+      "id": "follow-user-bidirectional",
+      "label": "followUser：双向关注关系",
+      "method": "followUser",
+      "nl_description": "当两个不同用户尚未建立关注关系时，followUser 应同时建立发起方的 following 关系和目标方的 followers 关系；同一份 JML 需要同时约束这两个方向。",
+      "case_ids": ["all-correct", "wrong-spec", "wrong-code"]
     }
   ]
 }

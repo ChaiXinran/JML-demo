@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "status": "teacher_approved",
+  "method": "unfollowUser",
+  "java_signature": "public void unfollowUser(int id1, int id2);",
+  "source": "requirement.md",
+  "obligations": {
+    "requires": [
+      {
+        "id": "PRE",
+        "expression": "containsUser(id1) && containsUser(id2) && getUser(id1).isFollowing(getUser(id2))"
+      }
+    ],
+    "ensures": [
+      {
+        "id": "POST_FORWARD",
+        "expression": "!getUser(id1).isFollowing(getUser(id2))"
+      },
+      {
+        "id": "POST_INVERSE",
+        "expression": "!getUser(id2).containsFollower(getUser(id1))"
+      }
+    ],
+    "assignable": ["users[*]"]
+  }
+}

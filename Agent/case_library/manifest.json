@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "contract_version": "hw9-network-v1",
+  "official_reference": "U3 HW9 NetworkInterface/UserInterface",
+  "cases": [
+    {
+      "id": "follow-user-a-correct",
+      "label": "案例 A：正确规格＋正确实现",
+      "exercise": "follow_user",
+      "method": "followUser",
+      "directory": "complete/follow_user/A_correct",
+      "nl": "NL.md",
+      "jml": "JML.java",
+      "java": "Java.java",
+      "suite": "../../judge-2027/unit3/spec_judge/suites/NetworkInterface/followUser/suite.yaml",
+      "intentional_defect": null,
+      "expected": {"nl_jml": "PASS", "jml_java": "PASS", "runtime": "PASS"}
+    },
+    {
+      "id": "follow-user-b-wrong-spec",
+      "label": "案例 B：关系方向写反",
+      "exercise": "follow_user",
+      "method": "followUser",
+      "directory": "complete/follow_user/B_wrong_spec",
+      "nl": "NL.md",
+      "jml": "JML.java",
+      "java": "Java.java",
+      "suite": "../../judge-2027/unit3/spec_judge/suites/NetworkInterface/followUser/suite.yaml",
+      "intentional_defect": "JML 将 id1→id2 的关系写成 id2→id1；实现与错误规格方向一致。",
+      "expected": {"nl_jml": "FAIL", "jml_java": "NOT_RUN", "runtime": "NOT_RUN"}
+    },
+    {
+      "id": "follow-user-c-wrong-code",
+      "label": "案例 C：正确规格＋漏更新实现",
+      "exercise": "follow_user",
+      "method": "followUser",
+      "directory": "complete/follow_user/C_wrong_code",
+      "nl": "NL.md",
+      "jml": "JML.java",
+      "java": "Java.java",
+      "suite": "../../judge-2027/unit3/spec_judge/suites/NetworkInterface/followUser/suite.yaml",
+      "intentional_defect": "实现遗漏 getUser(id2).followers[id1] 更新。",
+      "expected": {"nl_jml": "PASS", "jml_java": "FAIL", "runtime": "REPRODUCED"}
+    },
+    {
+      "id": "unfollow-user-a-correct",
+      "label": "案例 A：正确规格＋正确实现",
+      "exercise": "unfollow_user",
+      "method": "unfollowUser",
+      "directory": "complete/unfollow_user/A_correct",
+      "nl": "NL.md",
+      "jml": "JML.java",
+      "java": "Java.java",
+      "suite": "../../judge-2027/unit3/spec_judge/suites/NetworkInterface/unfollowUser/suite.yaml",
+      "intentional_defect": null,
+      "expected": {"nl_jml": "PASS", "jml_java": "PASS", "runtime": "PASS"}
+    },
+    {
+      "id": "unfollow-user-b-weak-spec",
+      "label": "案例 B：遗漏反向关系约束",
+      "exercise": "unfollow_user",
+      "method": "unfollowUser",
+      "directory": "complete/unfollow_user/B_weak_spec",
+      "nl": "NL.md",
+      "jml": "JML.java",
+      "java": "Java.java",
+      "suite": "../../judge-2027/unit3/spec_judge/suites/NetworkInterface/unfollowUser/suite.yaml",
+      "intentional_defect": "规格和实现都只删除正向关注关系，遗漏反向粉丝关系。",
+      "expected": {"nl_jml": "FAIL", "jml_java": "NOT_RUN", "runtime": "NOT_RUN"}
+    },
+    {
+      "id": "unfollow-user-c-wrong-code",
+      "label": "案例 C：正确规格＋漏更新实现",
+      "exercise": "unfollow_user",
+      "method": "unfollowUser",
+      "directory": "complete/unfollow_user/C_wrong_code",
+      "nl": "NL.md",
+      "jml": "JML.java",
+      "java": "Java.java",
+      "suite": "../../judge-2027/unit3/spec_judge/suites/NetworkInterface/unfollowUser/suite.yaml",
+      "intentional_defect": "实现遗漏 getUser(id2).followers[id1] 清除。",
+      "expected": {"nl_jml": "PASS", "jml_java": "FAIL", "runtime": "REPRODUCED"}
+    }
+  ]
+}

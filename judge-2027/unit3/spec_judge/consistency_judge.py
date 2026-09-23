@@ -143,6 +143,88 @@ def _bind_student_jml(student_jml_path: Path, java_path: Path, method_name: str)
     method_offset = java_declarations[0]["start"]
 
     replacement = contract_text
+    adaptations: list[dict[str, str]] = []
+    # The course handout uses ``users[*]`` as an abstract model-frame for
+    # mutations inside user objects.  In the small executable teaching
+    # adapter ``users`` is a concrete Java array, where standard OpenJML reads
+    # that store-ref as array cells only.  Bind the official abstraction to
+    # the adapter's two concrete relation cells; the submitted contract and
+    # NL grading input remain unchanged.
+    if (
+        "boolean[] following" in java_source
+        and "boolean[]" in java_source
+        and re.search(r"@\s*assignable\s+users\s*\[\s*\*\s*\]\s*;", replacement)
+        and {name for _, name in java_parameters} >= {"id1", "id2"}
+    ):
+        concrete_frame = (
+            "@ assignable users[id1].following[id2], "
+            "users[id2].followers[id1];"
+        )
+        replacement = re.sub(
+            r"@\s*assignable\s+users\s*\[\s*\*\s*\]\s*;",
+            concrete_frame,
+            replacement,
+        )
+        adaptations.append({
+            "kind": "course_model_frame",
+            "submitted": "users[*]",
+            "bound": "users[id1].following[id2], users[id2].followers[id1]",
+        })
+        query_replacements = (
+            (
+                r"getUser\((id[12])\)\.isFollowing\(getUser\((id[12])\)\)",
+                r"users[\1].following[\2]",
+            ),
+            (
+                r"getUser\((id[12])\)\.containsFollower\(getUser\((id[12])\)\)",
+                r"users[\1].followers[\2]",
+            ),
+            (
+                r"containsUser\((id[12])\)",
+                r"(users != null && 0 <= \1 && \1 < users.length && users[\1] != null)",
+            ),
+        )
+        for pattern, concrete in query_replacements:
+            replacement = re.sub(pattern, concrete, replacement)
+        adaptations.append({
+            "kind": "course_model_queries",
+            "submitted": "containsUser/getUser/isFollowing/containsFollower",
+            "bound": "concrete users/following/followers observations",
+        })
+        exceptional_match = re.search(
+            r"@\s*also\s*\n\s*@\s*public\s+exceptional_behavior\s*\n"
+            r"\s*@\s*assignable\s+\\nothing\s*;(?P<body>.*?)"
+            r"(?=\s*@\s*\*/)",
+            replacement,
+            re.DOTALL,
+        )
+        if exceptional_match is not None:
+            signal_clauses = re.findall(
+                r"@\s*signals\s*\(\s*([A-Za-z_]\w*)\s+[A-Za-z_]\w*\s*\)\s*(.*?)\s*;",
+                exceptional_match.group("body"),
+                re.DOTALL,
+            )
+            if signal_clauses:
+                behavior_lines: list[str] = []
+                for exception_type, condition in signal_clauses:
+                    normalized_condition = re.sub(r"\s*@\s*", " ", condition).strip()
+                    behavior_lines.extend((
+                        "      @ also",
+                        "      @ public exceptional_behavior",
+                        f"      @ requires {normalized_condition};",
+                        "      @ assignable \\nothing;",
+                        f"      @ signals_only {exception_type};",
+                    ))
+                replacement = (
+                    replacement[:exceptional_match.start()]
+                    + "\n".join(behavior_lines)
+                    + replacement[exceptional_match.end():]
+                )
+                adaptations.append({
+                    "kind": "course_exception_partition",
+                    "submitted": "one exceptional_behavior with conditional signals",
+                    "bound": "one standard JML exceptional behavior per course branch",
+                })
     existing_start = None
     existing_end = None
     for match in _JML_BLOCK_RE.finditer(java_source):
@@ -176,6 +258,7 @@ def _bind_student_jml(student_jml_path: Path, java_path: Path, method_name: str)
             for (type_name, name), (java_type, java_name)
             in zip(student_parameters, java_parameters)
         ],
+        "contract_adaptations": adaptations,
         "source_map": {
             "submitted_contract": jml_span.to_dict(),
             "target_java_method": SourceSpan(

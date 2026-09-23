@@ -68,6 +68,21 @@ class RuntimeVerifierTest(unittest.TestCase):
         self.assertEqual(1, len(violations))
         self.assertEqual("POSTCONDITION_VIOLATION", violations[0].code)
         self.assertEqual(1, violations[0].clause_index)
+        self.assertEqual("ensures:behavior-0:clause-2", violations[0].obligation_id)
+
+    def test_unlocated_rac_failure_is_not_a_confirmed_counterexample(self):
+        signature = RuntimeExecutor._rac_failure_signature(
+            "verify: JML postcondition is false", "unfollowUser"
+        )
+        self.assertIsNotNone(signature)
+        self.assertFalse(RuntimeExecutor._rac_failure_is_located(signature))
+
+    def test_rac_exception_fallback_is_unlocated(self):
+        signature = RuntimeExecutor._rac_failure_signature(
+            "", "unfollowUser", "JML assertion failed"
+        )
+        self.assertIsNotNone(signature)
+        self.assertFalse(RuntimeExecutor._rac_failure_is_located(signature))
 
     @patch("runtime_verifier.subprocess.run")
     def test_executor_parses_confirmed_clean_transition(self, run):
@@ -100,6 +115,21 @@ class RuntimeVerifierTest(unittest.TestCase):
         self.assertEqual([0, 1], result.post_state["users"])
         self.assertEqual([], result.post_state["following"])
         self.assertEqual(3, run.call_count)
+
+    def test_executor_treats_rac_diagnostic_as_failure_without_exception_field(self):
+        signature = RuntimeExecutor._rac_failure_signature(
+            "verify: JML postcondition is false at Network.java:44",
+            "unfollowUser",
+        )
+        self.assertIsNotNone(signature)
+        self.assertIn("postcondition", signature)
+        self.assertNotEqual(
+            signature,
+            RuntimeExecutor._rac_failure_signature(
+                "verify: JML precondition is false at Network.java:44",
+                "unfollowUser",
+            ),
+        )
 
     def test_state_dict_roundtrip_keeps_relations(self):
         candidate = UnfollowUserCandidateGenerator().generate(

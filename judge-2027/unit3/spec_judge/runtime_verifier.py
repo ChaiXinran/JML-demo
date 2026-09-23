@@ -51,6 +51,7 @@ class Violation:
     message: str
     clause_index: int | None = None
     line: int | None = None
+    obligation_id: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return dataclasses.asdict(self)
@@ -67,6 +68,11 @@ class RuntimeResult:
     arguments: Mapping[str, int] = dataclasses.field(default_factory=dict)
     tags: tuple[str, ...] = ()
     rac_failure: bool = False
+    failure_signature: str | None = None
+    execution_status: str = ""
+    conclusion: str = ""
+    evidence_origin: tuple[str, ...] = ()
+    confirmation_status: str = "NOT_RUN"
     violations: tuple[Violation, ...] = ()
     evidence: Mapping[str, Any] = dataclasses.field(default_factory=dict)
 
@@ -81,6 +87,19 @@ class RuntimeResult:
             "arguments": dict(self.arguments),
             "tags": list(self.tags),
             "rac_failure": self.rac_failure,
+            "failure_signature": self.failure_signature,
+            "execution_status": self.execution_status or (
+                "ERROR" if self.replay_status in {"ERROR", "UNLOCATED_FAILURE"}
+                else "COMPLETED"
+            ),
+            "conclusion": self.conclusion or {
+                "REPRODUCED": "CONFIRMED_VIOLATION",
+                "NOT_FOUND_WITHIN_BOUNDS": "NO_OBSERVED_VIOLATION",
+                "UNLOCATED_FAILURE": "FAILURE_OBSERVED_UNLOCATED",
+                "ERROR": "EXECUTION_ERROR",
+            }.get(self.replay_status, "NOT_RUN"),
+            "evidence_origin": list(self.evidence_origin),
+            "confirmation_status": self.confirmation_status,
             "violations": [item.to_dict() for item in self.violations],
             "evidence": dict(self.evidence),
         }
@@ -310,6 +329,10 @@ class ViolationChecker:
         if not normal_applicable(contract, scenario, profile):
             return ()
         ensure_offset = 0
+        ensure_clauses = [
+            clause for clause in contract.clauses
+            if clause.kind == "ensures" and clause.behavior_kind != "exceptional"
+        ]
         for behavior in contract.normal_behaviors:
             if not all(bool(evaluate_expression(item, context.pre_state(), profile)) for item in behavior.requires):
                 ensure_offset += len(behavior.ensures)
@@ -318,12 +341,18 @@ class ViolationChecker:
                 if bool(evaluate_expression(expression, context, profile)):
                     continue
                 lines = contract.lines_for("ensures", normal_only=True)
+                clause = ensure_clauses[ensure_offset + index] if ensure_offset + index < len(ensure_clauses) else None
                 violations.append(Violation(
                     "POSTCONDITION_VIOLATION",
                     "postcondition",
                     "运行后的状态不满足绑定 JML 后置条件。",
                     ensure_offset + index,
                     lines[ensure_offset + index] if ensure_offset + index < len(lines) else None,
+                    (
+                        f"ensures:behavior-{clause.behavior_index}:clause-"
+                        f"{sum(1 for item in ensure_clauses[:ensure_offset + index] if item.behavior_index == clause.behavior_index) + 1}"
+                        if clause is not None else None
+                    ),
                 ))
             ensure_offset += len(behavior.ensures)
         return tuple(violations)
@@ -343,6 +372,50 @@ class RuntimeExecutor:
             "jml", "assertion", "precondition", "postcondition", "assignable",
             "frame condition",
         ))
+
+    @staticmethod
+    def _rac_failure_signature(output: str, method_name: str, exception: str | None = None) -> str | None:
+        """Extract a stable identity for a JML runtime failure.
+
+        RAC may report a violated clause on stderr while the runner itself
+        still exits normally and emits ``exception=NONE``.  A broad
+        ``exception != NONE`` check therefore misses real failures.  The
+        signature deliberately keeps the check kind and the normalized
+        diagnostic line, so a postcondition failure cannot confirm a later
+        helper precondition failure.
+        """
+
+        lines = [re.sub(r"\s+", " ", line).strip() for line in output.splitlines()]
+        markers = (
+            ("precondition", "precondition"),
+            ("postcondition", "postcondition"),
+            ("assignable", "assignable"),
+            ("frame condition", "frame"),
+            ("invariant", "invariant"),
+            ("assertion", "assertion"),
+        )
+        failure_words = ("false", "violat", "failed", "failure", "error")
+        for line in lines:
+            lowered = line.lower()
+            kind = next((name for token, name in markers if token in lowered), None)
+            if kind is None or not any(word in lowered for word in failure_words):
+                continue
+            # Prefer a stable source location over the full diagnostic text.
+            # Temporary paths and wording around the same obligation are tool
+            # noise; the original output remains in evidence for inspection.
+            location = re.search(r"(?:^|\s)(?:at|:)(?:[^\s:]+:)?(?P<line>\d+)(?::\d+)?", lowered)
+            if location is not None:
+                return f"{method_name}|obligation={kind}|source_line={location.group('line')}"
+            normalized = re.sub(r"[A-Za-z]:\\[^ ]+|/[^ ]+", "<path>", lowered)
+            return f"{method_name}|obligation={kind}|unlocated|{normalized}"
+        if exception and RuntimeExecutor._is_rac_failure(exception):
+            lowered = re.sub(r"\s+", " ", exception.lower()).strip()
+            return f"{method_name}|exception|unlocated|{lowered}"
+        return None
+
+    @staticmethod
+    def _rac_failure_is_located(signature: str | None) -> bool:
+        return bool(signature) and "|unlocated|" not in signature
 
     @staticmethod
     def _windows_to_wsl(path: Path) -> str:
@@ -408,6 +481,7 @@ class RuntimeExecutor:
                 return RuntimeResult(
                     candidate.id, "ERROR", "rac_compile",
                     arguments=candidate.arguments, tags=candidate.tags,
+                    execution_status="ERROR", conclusion="EXECUTION_ERROR",
                     evidence={"code": "RAC_COMPILE_ERROR", "output": compile_output, "binding": binding},
                 )
             runner_compiled = subprocess.run(
@@ -424,6 +498,7 @@ class RuntimeExecutor:
                 return RuntimeResult(
                     candidate.id, "ERROR", "runner_compile",
                     arguments=candidate.arguments, tags=candidate.tags,
+                    execution_status="ERROR", conclusion="EXECUTION_ERROR",
                     evidence={
                         "code": "RUNNER_COMPILE_ERROR",
                         "output": runner_compile_output,
@@ -438,9 +513,30 @@ class RuntimeExecutor:
                 part for part in (_decode_tool_output(executed.stdout), _decode_tool_output(executed.stderr)) if part
             ).strip()
             if executed.returncode != 0:
+                failure_signature = self._rac_failure_signature(output, method_name)
+                if failure_signature is not None:
+                    localized = self._rac_failure_is_located(failure_signature)
+                    return RuntimeResult(
+                        candidate.id, "REPRODUCED" if localized else "UNLOCATED_FAILURE", "rac_runtime",
+                        pre_state=_state_dict(candidate.pre),
+                        arguments=candidate.arguments, tags=candidate.tags,
+                        rac_failure=True, failure_signature=failure_signature,
+                        execution_status="COMPLETED",
+                        conclusion="CONFIRMED_VIOLATION" if localized else "FAILURE_OBSERVED_UNLOCATED",
+                        evidence_origin=("openjml_rac",),
+                        evidence={
+                            "code": "RAC_RUNTIME_FAILURE",
+                            "output": output,
+                            "binding": binding,
+                            "failure_signature": failure_signature,
+                            "localized": localized,
+                            "target_executed": True,
+                        },
+                    )
                 return RuntimeResult(
                     candidate.id, "ERROR", "runtime",
                     arguments=candidate.arguments, tags=candidate.tags,
+                    execution_status="ERROR", conclusion="EXECUTION_ERROR",
                     evidence={"code": "RUNTIME_PROCESS_ERROR", "output": output, "binding": binding},
                 )
             before = next((line for line in output.splitlines() if line.startswith("BEFORE|")), None)
@@ -449,38 +545,58 @@ class RuntimeExecutor:
                 return RuntimeResult(
                     candidate.id, "ERROR", "runtime_observation",
                     arguments=candidate.arguments, tags=candidate.tags,
+                    execution_status="ERROR", conclusion="EXECUTION_ERROR",
                     evidence={"code": "RUNTIME_OUTPUT_INVALID", "output": output, "binding": binding},
                 )
             pre = adapter.observe(before.removeprefix("BEFORE|"))
             post_fields = dict(item.split("=", 1) for item in result.removeprefix("RESULT|").split("|") if "=" in item)
             post = adapter.observe(result.removeprefix("RESULT|").split("|exception=", 1)[0])
             exception = post_fields.get("exception") or "NONE"
-            is_rac_failure = exception != "NONE" and self._is_rac_failure(exception)
+            failure_signature = self._rac_failure_signature(
+                output,
+                method_name,
+                None if exception == "NONE" else exception,
+            )
+            is_rac_failure = failure_signature is not None
+            rac_localized = self._rac_failure_is_located(failure_signature)
             if exception == "NONE":
                 exception = None
             adapter.check_roundtrip(candidate.pre, pre)
             return RuntimeResult(
                 candidate.id,
-                "REPRODUCED" if is_rac_failure else "ERROR" if exception else "NOT_FOUND_WITHIN_BOUNDS",
+                "REPRODUCED" if is_rac_failure and rac_localized else "UNLOCATED_FAILURE" if is_rac_failure else "ERROR" if exception else "NOT_FOUND_WITHIN_BOUNDS",
                 "rac_runtime" if is_rac_failure else "target_runtime" if exception else "runtime",
                 pre_state=_state_dict(pre), post_state=_state_dict(post), exception=exception,
-                arguments=candidate.arguments, tags=candidate.tags, rac_failure=is_rac_failure,
+                arguments=candidate.arguments, tags=candidate.tags,
+                rac_failure=is_rac_failure, failure_signature=failure_signature,
+                execution_status="COMPLETED",
+                conclusion=(
+                    "CONFIRMED_VIOLATION" if is_rac_failure and rac_localized
+                    else "FAILURE_OBSERVED_UNLOCATED" if is_rac_failure
+                    else "EXECUTION_ERROR" if exception else "NO_OBSERVED_VIOLATION"
+                ),
+                evidence_origin=("openjml_rac",) if is_rac_failure else ("target_runtime",),
                 evidence={
                     "output": output,
                     "binding": binding,
                     "rac_failure": is_rac_failure,
+                    "failure_signature": failure_signature,
+                    "localized": rac_localized,
+                    "target_executed": True,
                 },
             )
         except subprocess.TimeoutExpired:
             return RuntimeResult(
                 candidate.id, "ERROR", "timeout",
                 arguments=candidate.arguments, tags=candidate.tags,
+                execution_status="TIMEOUT", conclusion="EXECUTION_ERROR",
                 evidence={"code": "RUNTIME_TIMEOUT", "timeout_seconds": self.timeout},
             )
         except (OSError, UnicodeError, ValueError) as error:
             return RuntimeResult(
                 candidate.id, "ERROR", "adapter",
                 arguments=candidate.arguments, tags=candidate.tags,
+                execution_status="ERROR", conclusion="ADAPTER_ERROR",
                 evidence={"code": "ADAPTER_ERROR", "message": str(error)},
             )
         finally:
@@ -549,10 +665,10 @@ def _same_violation_set(
     first: tuple[Violation, ...], second: tuple[Violation, ...]
 ) -> bool:
     return {
-        (item.code, item.kind, item.clause_index)
+        (item.code, item.kind, item.obligation_id, item.line)
         for item in first
     } == {
-        (item.code, item.kind, item.clause_index)
+        (item.code, item.kind, item.obligation_id, item.line)
         for item in second
     }
 
@@ -594,6 +710,8 @@ def verify_unfollow_user(
                     result,
                     replay_status="REPRODUCED",
                     violations=violations,
+                    conclusion="CONFIRMED_VIOLATION",
+                    evidence_origin=("profile_transition_check",),
                     evidence={
                         **result.evidence,
                         "confirmed_by": "profile_transition_check",
@@ -607,7 +725,11 @@ def verify_unfollow_user(
                 checker, contract, candidate, confirmation, suite.profile
             )
             if result.rac_failure:
-                same_violation = confirmation.rac_failure
+                same_violation = (
+                    confirmation.rac_failure
+                    and result.failure_signature is not None
+                    and result.failure_signature == confirmation.failure_signature
+                )
             else:
                 same_violation = _same_violation_set(result.violations, confirmation_violations)
             if same_violation:
@@ -620,15 +742,20 @@ def verify_unfollow_user(
                             "independent_execution": True,
                             "phase": confirmation.phase,
                             "rac_failure": confirmation.rac_failure,
+                            "failure_signature": confirmation.failure_signature,
                             "violations": [item.to_dict() for item in confirmation_violations],
                         },
                     },
+                    confirmation_status="REPLAY_CONFIRMED",
                 )
             else:
                 result = dataclasses.replace(
                     result,
                     replay_status="ERROR",
                     phase="replay_confirmation",
+                    execution_status="ERROR",
+                    conclusion="REPLAY_MISMATCH",
+                    confirmation_status="REPLAY_MISMATCH",
                     evidence={
                         **result.evidence,
                         "code": "REPLAY_CONFIRMATION_FAILED",
@@ -644,24 +771,67 @@ def verify_unfollow_user(
         results.append(result)
     reproduced = [item for item in results if item.replay_status == "REPRODUCED"]
     errors = [item for item in results if item.replay_status == "ERROR"]
-    replay_status = (
-        "REPRODUCED" if reproduced
-        else "ERROR" if errors
-        else "NOT_FOUND_WITHIN_BOUNDS"
+    unlocated = [item for item in results if item.replay_status == "UNLOCATED_FAILURE"]
+    if not candidates:
+        replay_status = "NO_VALID_CANDIDATES"
+        conclusion = "NO_VALID_CANDIDATES"
+    elif reproduced:
+        replay_status = "REPRODUCED"
+        conclusion = "CONFIRMED_VIOLATION"
+    elif errors:
+        replay_status = "ERROR"
+        conclusion = "EXECUTION_ERROR"
+    elif unlocated:
+        replay_status = "UNLOCATED_FAILURE"
+        conclusion = "FAILURE_OBSERVED_UNLOCATED"
+    else:
+        replay_status = "NOT_FOUND_WITHIN_BOUNDS"
+        conclusion = "NOT_FOUND_WITHIN_BOUNDS"
+    if reproduced and _static_status(static_result.verdict) == "PROVED":
+        conclusion = "EVIDENCE_CONFLICT"
+    executed_count = sum(
+        bool(item.evidence.get("target_executed")) for item in results
     )
+    no_observed_count = sum(
+        item.replay_status == "NOT_FOUND_WITHIN_BOUNDS" for item in results
+    )
+    evidence_origins = sorted({
+        origin for item in results for origin in item.evidence_origin
+    })
+    execution_status = (
+        "COMPLETED_WITH_ERRORS" if errors and (reproduced or unlocated)
+        else "ERROR" if errors else "COMPLETED"
+    )
+    search_complete = (
+        len(results) == len(candidates)
+        and not any(item.phase == "timeout" for item in results)
+    )
+    # The current deterministic generator enumerates its complete fixed set;
+    # reaching the last candidate is completion, not budget exhaustion.
+    budget_exhausted = False
+    binding = (static_result.evidence or {}).get("binding", {}) if static_result.evidence else {}
     session = VerificationSession.start(
         suite.method,
         {
             "suite_reference_sha256": _safe_file_hash(suite.reference),
             "student_jml_sha256": _safe_file_hash(student_jml),
             "student_java_sha256": _safe_file_hash(student_java),
+            "student_contract_sha256": str(binding.get("student_contract_sha256", "unavailable")),
+            "bound_java_sha256": str(binding.get("bound_java_sha256", "unavailable")),
         },
         {
             "openjml": openjml,
             "timeout_seconds_per_attempt": timeout,
             "adapter": "UnfollowUserExecutionAdapter",
+            "adapter_version": "unfollowUser-v1",
+            "suite_version": suite.version,
+            "profile": getattr(suite.profile, "name", "unknown"),
             "search_strategy": "deterministic_small_states",
             "universe_size": adapter.universe_size,
+            "search_budget": {
+                "candidate_limit": generator.generated_count,
+                "timeout_seconds_per_attempt": timeout,
+            },
         },
     )
     session.add(Evidence(
@@ -681,9 +851,16 @@ def verify_unfollow_user(
         "candidate_search", "candidate_generator", "确定性候选搜索已完成",
         {
             "generated_count": generator.generated_count,
+            "candidate_count": len(candidates),
             "skipped_count": generator.skipped_count,
             "attempted_count": len(results),
-            "search_complete": True,
+            "executed_count": executed_count,
+            "no_observed_violation_count": no_observed_count,
+            "confirmed_count": len(reproduced),
+            "error_count": len(errors),
+            "unlocated_failure_count": len(unlocated),
+            "search_complete": search_complete,
+            "budget_exhausted": budget_exhausted,
         },
     ))
     for item in results:
@@ -697,6 +874,10 @@ def verify_unfollow_user(
         "static_status": _static_status(static_result.verdict),
         "static_result": static_result.to_dict(),
         "replay_status": replay_status,
+        "execution_status": execution_status,
+        "conclusion": conclusion,
+        "evidence_origin": evidence_origins,
+        "confirmation_status": "REPLAY_CONFIRMED" if reproduced else "NOT_CONFIRMED",
         "support": adapter.support_matrix(),
         "search": {
             "strategy": "deterministic_small_states",
@@ -704,11 +885,20 @@ def verify_unfollow_user(
             "candidate_count": len(candidates),
             "skipped_count": generator.skipped_count,
             "attempted_count": len(results),
+            "executed_count": executed_count,
+            "no_observed_violation_count": no_observed_count,
+            "confirmed_count": len(reproduced),
+            "error_count": len(errors),
+            "unlocated_failure_count": len(unlocated),
             "universe_size": adapter.universe_size,
-            "search_complete": True,
+            "search_complete": search_complete,
+            "budget_exhausted": budget_exhausted,
             "timeout_seconds_per_attempt": timeout,
         },
         "results": [item.to_dict() for item in results],
+        "confirmed_counterexamples": [item.to_dict() for item in reproduced],
+        "errors": [item.to_dict() for item in errors],
+        "unconfirmed_observations": [item.to_dict() for item in unlocated],
         "session": session.to_dict(),
     }
 

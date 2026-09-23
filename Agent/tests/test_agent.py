@@ -183,6 +183,97 @@ class AgentTest(unittest.TestCase):
         )
         self.assertNotIn("student_jml", json.dumps(cases))
 
+    def test_consistency_demo_exposes_grouped_nl_and_jml_java_variants(self):
+        project_root = Path(__file__).resolve().parent.parent
+        app = ExerciseWebApp(
+            project_root=project_root,
+            exercise_dir=project_root / "exercises" / "follow_user",
+            model="deepseek-chat",
+            base_url="https://api.deepseek.com",
+        )
+        groups = app.public_exercise()["consistency_demo_groups"]
+        self.assertEqual(1, len(groups))
+        self.assertEqual("follow-user-bidirectional", groups[0]["id"])
+        self.assertEqual("followUser", groups[0]["method"])
+        self.assertTrue(groups[0]["nl_description"])
+        self.assertEqual(
+            ["all-correct", "wrong-spec", "wrong-code"],
+            [item["id"] for item in groups[0]["cases"]],
+        )
+        self.assertNotIn("student_jml", json.dumps(groups))
+        self.assertNotIn("implementation_method", json.dumps(groups))
+
+    def test_web_exposes_only_matching_whitelisted_upload_cases(self):
+        project_root = Path(__file__).resolve().parent.parent
+        follow_app = ExerciseWebApp(
+            project_root=project_root,
+            exercise_dir=project_root / "exercises" / "follow_user",
+            model="deepseek-chat",
+            base_url="https://api.deepseek.com",
+        )
+        follow_cases = follow_app.public_exercise()["upload_cases"]
+        self.assertEqual(3, len(follow_cases))
+        self.assertTrue(all("followUser(" in item["jml"]["content"] for item in follow_cases))
+        self.assertTrue(all("followUser(" in item["java"]["content"] for item in follow_cases))
+        serialized = json.dumps(follow_cases, ensure_ascii=False)
+        self.assertNotIn("suite.yaml", serialized)
+        self.assertNotIn("case_library", serialized)
+
+        unfollow_app = ExerciseWebApp(
+            project_root=project_root,
+            exercise_dir=project_root / "exercises" / "unfollow_user",
+            model="deepseek-chat",
+            base_url="https://api.deepseek.com",
+        )
+        unfollow_cases = unfollow_app.public_exercise()["upload_cases"]
+        self.assertEqual(3, len(unfollow_cases))
+        self.assertTrue(all("unfollowUser(" in item["jml"]["content"] for item in unfollow_cases))
+
+    def test_web_registers_both_exercises_without_shared_current_state(self):
+        project_root = Path(__file__).resolve().parent.parent
+        app = ExerciseWebApp(
+            project_root=project_root,
+            exercise_dir=project_root / "exercises" / "follow_user",
+            model="deepseek-chat",
+            base_url="https://api.deepseek.com",
+        )
+        catalog = {item["method"]: item for item in app.public_exercises()}
+        self.assertEqual({"followUser", "unfollowUser"}, set(catalog))
+        follow = app.resolve_exercise(catalog["followUser"]["id"])
+        unfollow = app.resolve_exercise(catalog["unfollowUser"]["id"])
+        self.assertEqual("followUser", follow.bundle.config["method"])
+        self.assertEqual("unfollowUser", unfollow.bundle.config["method"])
+        self.assertNotEqual(follow.material_version(), unfollow.material_version())
+
+    def test_review_keeps_case_identity_and_stops_after_invalid_spec(self):
+        project_root = Path(__file__).resolve().parent.parent
+        app = ExerciseWebApp(
+            project_root=project_root,
+            exercise_dir=project_root / "exercises" / "unfollow_user",
+            model="deepseek-chat",
+            base_url="https://api.deepseek.com",
+        )
+        case = next(
+            item for item in app.public_exercise()["upload_cases"]
+            if item["id"] == "unfollow-user-b-weak-spec"
+        )
+        with patch.object(app, "semantic_check", return_value={
+            "score": 50,
+            "passed": False,
+            "diagnostics": [{"code": "POSTCONDITION_MISMATCH"}],
+        }):
+            result = app.review({
+                "case_id": case["id"],
+                "submission": case["jml"]["content"],
+                "source_mode": "paste",
+                "java_source": case["java"]["content"],
+                "java_filename": case["java"]["filename"],
+            })
+        self.assertEqual(case["id"], result["submission_snapshot"]["case_id"])
+        self.assertTrue(result["submission_snapshot"]["case_exact_match"])
+        self.assertEqual("NOT_RUN", result["implementation"]["static_status"])
+        self.assertEqual("NOT_RUN", result["implementation"]["runtime"]["status"])
+
     def test_web_uses_deterministic_semantic_judge_without_exposing_reference(self):
         project_root = Path(__file__).resolve().parent.parent
         app = ExerciseWebApp(
@@ -346,8 +437,8 @@ class AgentTest(unittest.TestCase):
         page = (project_root / "web" / "index.html").read_text(encoding="utf-8")
         self.assertIn("function renderCoach(coach)", script)
         self.assertIn("renderCoach(data.coach)", script)
-        self.assertIn("if(cases.length){$('consistency-demo').classList.remove('hidden')", script)
-        self.assertIn('id="consistency-demo" class="panel demo-box hidden"', page)
+        self.assertNotIn('id="teaching-demo"', page)
+        self.assertNotIn('data-scroll="teaching-demo"', page)
         self.assertNotIn("data.feedback", script)
 
     def test_student_prompt_uses_public_feedback_contract_only(self):
