@@ -43,13 +43,14 @@ class RecordingProfile:
         return DEFAULT_PROFILE.parameter_types(method_name)
 
 
-ROOT = Path(__file__).resolve().parents[3]
-REFERENCE = ROOT / "Agent" / "staff" / "fixtures" / "follow_user_complete.java"
-SAMPLES = ROOT / "Agent" / "exercises" / "follow_user" / "samples"
+JUDGE_ROOT = Path(__file__).resolve().parent
+REFERENCE = JUDGE_ROOT / "suites" / "NetworkInterface" / "followUser" / "reference.java"
+SAMPLES = JUDGE_ROOT / "tests" / "fixtures" / "followUser"
 SUITE = Path(__file__).parent / "suites" / "NetworkInterface" / "followUser" / "suite.yaml"
 CONTAINS_BOTH_SUITE = Path(__file__).parent / "suites" / "NetworkInterface" / "containsBoth" / "suite.yaml"
 CAN_INTERACT_SUITE = Path(__file__).parent / "suites" / "NetworkInterface" / "canInteract" / "suite.yaml"
 COUNTER_SUITE = Path(__file__).parent / "suites" / "CounterInterface" / "checkNonNegative" / "suite.yaml"
+UNFOLLOW_SUITE = Path(__file__).parent / "suites" / "NetworkInterface" / "unfollowUser" / "suite.yaml"
 
 
 class SemanticJudgeTests(unittest.TestCase):
@@ -493,15 +494,34 @@ void anotherMethod();
         ).to_dict()
         self.assertNotIn("witness", json.dumps(ordinary_result))
 
+    def test_unfollow_user_accepts_reference_and_rejects_missing_inverse(self):
+        suite = load_suite(UNFOLLOW_SUITE, PROFILES)
+        reference = suite.reference.read_text(encoding="utf-8")
+        self.assertTrue(evaluate_sources(reference, reference, suite.method, suite.profile).passed)
+        wrong = (UNFOLLOW_SUITE.parent / "wrong.java").read_text(encoding="utf-8")
+        result = evaluate_sources(reference, wrong, suite.method, suite.profile)
+        self.assertFalse(result.passed)
+        self.assertIn("POSTCONDITION_MISMATCH", {item.code for item in result.diagnostics})
+
     def test_all_declarative_suites_pass_preflight_validation(self):
-        for path in (SUITE, CONTAINS_BOTH_SUITE, CAN_INTERACT_SUITE, COUNTER_SUITE):
+        for path in sorted((JUDGE_ROOT / "suites").glob("*/*/suite.yaml")):
             with self.subTest(suite=path.name):
                 report = validate(path)
                 self.assertTrue(report["valid"])
                 self.assertGreater(report["pre_points"], 0)
                 self.assertGreater(report["post_points"], 0)
-                self.assertEqual(100, report["mutations"]["score"])
-                self.assertEqual([], report["mutations"]["survivors"])
+                configured_quality = load_suite(path, PROFILES).quality
+                self.assertGreaterEqual(
+                    report["mutations"]["score"], configured_quality.get("min_mutation_score", 0),
+                )
+                if path == UNFOLLOW_SUITE:
+                    # The omitted redundant conjunct is equivalent on legal
+                    # network states, so it is not counted as a missing point.
+                    self.assertEqual(86, report["mutations"]["score"])
+                    self.assertEqual(["delete_conjunct.2"], report["mutations"]["survivors"])
+                elif path in (SUITE, CONTAINS_BOTH_SUITE, CAN_INTERACT_SUITE, COUNTER_SUITE):
+                    self.assertEqual(100, report["mutations"]["score"])
+                    self.assertEqual([], report["mutations"]["survivors"])
                 if path in (SUITE, COUNTER_SUITE):
                     self.assertGreater(report["generated_post"]["accepted_by_reference"], 0)
                     self.assertGreater(report["generated_post"]["rejected_by_reference"], 0)

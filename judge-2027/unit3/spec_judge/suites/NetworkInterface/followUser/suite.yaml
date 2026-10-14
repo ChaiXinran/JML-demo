@@ -36,6 +36,6 @@
   },
   "quality": {"min_mutation_score": 100},
   "solver": {"mode": "audit", "timeout_ms": 1000},
-  "reference": "../../../../../../Agent/staff/fixtures/follow_user_complete.java",
+  "reference": "reference.java",
   "points": "points.yaml"
 }

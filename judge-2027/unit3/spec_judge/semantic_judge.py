@@ -27,6 +27,9 @@ from core.smt import SmtBackendUnavailable, SmtStatus, compare_contracts_smt
 from profiles.network_v1 import DEFAULT_PROFILE, NetworkState, NetworkUserRef
 
 
+RESULT_SCHEMA_VERSION = 1
+
+
 class SemanticDiagnosticCode(str, Enum):
     NORMAL_CONDITION_MISMATCH = "NORMAL_CONDITION_MISMATCH"
     POSTCONDITION_MISMATCH = "POSTCONDITION_MISMATCH"
@@ -112,6 +115,8 @@ class SemanticResult:
 
     def to_dict(self) -> dict[str, Any]:
         payload = {
+            "schema_version": RESULT_SCHEMA_VERSION,
+            "status": "PASS" if self.passed else "FAIL",
             "score": self.score,
             "passed": self.passed,
             "diagnostics": [item.to_dict() for item in self.diagnostics],
@@ -367,7 +372,12 @@ def evaluate_sources(
         return SemanticResult(0, False, (Diagnostic(
             SemanticDiagnosticCode.JML_FORMAT_OR_SYMBOL.value, "SUBMISSION", "JML 格式或接口符号",
             str(error), "检查空位是否填完、JML 语法是否完整，以及是否只使用模板允许的接口符号。",
-        ),))
+        ),), evaluation={
+            "profile": profile.name,
+            "suite": getattr(profile, "suite_name", None),
+            "suite_version": getattr(profile, "suite_version", None),
+            "guarantee_scope": getattr(profile, "guarantee_scope", "profile_scenarios"),
+        })
     return evaluate_contracts(reference, candidate, method_name, profile)
 
 

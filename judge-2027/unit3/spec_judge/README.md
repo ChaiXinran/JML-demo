@@ -2,53 +2,40 @@
 
 第一次添加测试点或新方法，请先看 [手把手使用说明](USAGE.md)；它提供完整的文件示例、逐步命令与排错顺序。
 
-本目录的正式评分入口 `semantic_check.py` 负责比较“参考 JML”和“学生 JML”在指定抽象状态上的语义一致性，不运行学生 Java。另有 `consistency_judge.py` 用于需要时的双链检查：它可将学生 JML 临时绑定到目标 Java 方法后调用 OpenJML，并返回可追溯的验证会话证据；这条链不替代本目录的 JML–JML suite，也不把未证明直接等同于实现错误。`runtime_verifier.py` 在第二阶段 2A＋2B 中为受限的 `unfollowUser` Java 适配器增加 RAC 编译、确定性小规模枚举、前后态观察和独立重跑确认；它同样不把有限范围内未找到反例当作正确性证明。`spec_judge.py` 是早期回归原型。
+本目录维护一个独立的 JML–JML 评测器组件。正式入口 `semantic_check.py` 在 suite 声明的抽象状态上比较参考 JML 与学生提交中的 JML，不编译或运行学生 Java，也不调用 Web、Java 或 OpenJML。学生可提交 UTF-8 的 `.java` 或 `.jml` 源文本；两种格式都必须包含目标方法声明及其紧邻的 JML 注释块。这里的 `.jml` 只是接受的文件扩展名，不表示支持完整 OpenJML sidecar 文件格式。Web、Java 实现和 OpenJML 验证由协作者维护，和本组件的 JML–JML 评测分别接入。`consistency_judge.py`、`runtime_verifier.py`、`verification_evidence.py` 及其历史测试和 Java 示例暂留目录中供兼容，不属于本轮维护范围，也不进入独立发布包；`spec_judge.py` 是早期原型。
 
 ## 1. 当前能力和保证范围
 
-当前已有五个可运行 Suite，覆盖三个扩展层级：
+当前有五个可运行 Suite，覆盖三个扩展层级：
 
 - `NetworkInterface.followUser`：原始网络方法；
 - `NetworkInterface.containsBoth`：复用已有网络 Profile 的新方法；
 - `NetworkInterface.canInteract`：给网络 Profile 增加 `blocked/isBlocked` 关系；
-- `NetworkInterface.unfollowUser`：独立方法目录中的新练习，已接入 Web；
+- `NetworkInterface.unfollowUser`：独立方法目录中的取消关注练习；
 - `CounterInterface.checkNonNegative`：独立标量 Profile 和无参数方法。
-
-第二阶段的运行反例入口目前只支持教师本地执行：
-
-```bash
-python3 runtime_verifier.py \
-  --suite suites/NetworkInterface/unfollowUser/suite.yaml \
-  --student-jml suites/NetworkInterface/unfollowUser/reference.java \
-  --student-java examples/UnfollowUserRuntimeDemo.java \
-  --openjml wsl:/home/ranye/.local/openjml-21.0.27/openjml
-```
-
-输出同时包含 `static_status` 和 `replay_status`、受限规格支持清单、搜索统计、候选输入、
-实际前后态、违反条款和 `session` 证据。当前候选生成、`unfollowUser` 适配器及 RAC 执行均是
-明确的窄接口；任意 ZIP、任意对象图、反例缩减、Web 任务入口和 `followUser` 运行检查不在本里程碑内。
 
 其中 `followUser` 使用：
 
-- 参考合同：`Agent/staff/fixtures/follow_user_complete.java`；
+- 参考合同：`suites/NetworkInterface/followUser/reference.java`；
 - 领域 Profile：`profiles/network_v1/profile.py`；
 - 方法配置：`suites/NetworkInterface/followUser/suite.yaml`；
 - 测试点：`suites/NetworkInterface/followUser/points.yaml`；
 - 9 个前态和 5 个前后态对（含 4 个生成变体）；
 - 支持布尔逻辑、整数比较、`\old`、`containsUser`、`getUser`、`isFollowing` 和 `containsFollower`。
 
-默认评分结论只表示参考和学生合同在 suite 声明的有限测试域上一致，不表示任意状态上的完整逻辑等价。当前可对声明的参数域和状态列表做确定性笛卡尔展开，并已按行为归一化 `requires`、`ensures` 和 `signals`。可选 SMT 后端能检查当前 AST 子集的逻辑差异；`network_v1` 已配置部分领域不变量公理，但并非完整的领域或 JML 语义，量词、集合运算和完整 JML frame 语法仍未支持。路线见仓库根目录 `TODO.md`。
+默认评分结论只表示参考和学生合同在 suite 声明的有限测试域上一致，不表示任意状态上的完整逻辑等价。当前可对声明的参数域和状态列表做确定性笛卡尔展开，并已按行为归一化 `requires`、`ensures` 和 `signals`。可选 SMT 后端能检查当前 AST 子集的逻辑差异；`network_v1` 已配置部分领域不变量公理，但并非完整的领域或 JML 语义，量词、集合运算和完整 JML frame 语法仍未支持。后续路线见本目录 [TODO.md](TODO.md)。
 
 ### 可选安装 SMT
 
-固定点模式只依赖 Python 标准库。需要 SMT 审计或强制判定时，在仓库根目录运行：
+固定点模式只依赖 Python 标准库。需要 SMT 审计或强制判定时，在本目录创建虚拟环境并安装依赖：
 
 ```bash
+cd judge-2027/unit3/spec_judge
 python3 -m venv .venv
-.venv/bin/python -m pip install -r judge-2027/unit3/spec_judge/requirements-smt.txt
+.venv/bin/python -m pip install -r requirements-smt.txt
 ```
 
-Windows 使用 `.venv\Scripts\python.exe`。之后将下文命令中的 `python3` 换成仓库根目录的 `.venv/bin/python`（Windows 换成对应路径）。
+Windows 使用 `.venv\Scripts\python.exe`。之后将下文命令中的 `python3` 换成 `.venv/bin/python`（Windows 换成 `.venv\Scripts\python.exe`）。
 
 ## 2. 开始一次评测
 
@@ -56,15 +43,17 @@ Windows 使用 `.venv\Scripts\python.exe`。之后将下文命令中的 `python3
 
 ```bash
 python3 semantic_check.py \
-  ../../../Agent/staff/fixtures/follow_user_complete.java \
+  suites/NetworkInterface/followUser/reference.java \
   --suite suites/NetworkInterface/followUser/suite.yaml \
   --json
 ```
 
-第一个路径是学生提交。示例中用参考文件自身作为提交，因此结果应为：
+第一个路径是学生提交。示例中用组件内的参考文件自身作为提交，因此结果应为 `schema_version: 1`、`status: "PASS"`，并保留兼容字段 `score: 100`、`passed: true`：
 
 ```json
 {
+  "schema_version": 1,
+  "status": "PASS",
   "score": 100,
   "passed": true,
   "diagnostics": [],
@@ -87,25 +76,27 @@ python3 semantic_check.py \
 
 ```bash
 python3 semantic_check.py \
-  ../../../Agent/exercises/follow_user/samples/wrong-relation-direction.java \
+  tests/fixtures/followUser/wrong-relation-direction.java \
   --suite suites/NetworkInterface/followUser/suite.yaml \
   --json
 ```
 
-仍保留旧兼容入口：
+也可以从标准输入传入提交内容：
 
 ```bash
-python3 semantic_check.py STUDENT.java \
-  --reference REFERENCE.java \
-  --method followUser \
+cat tests/fixtures/followUser/wrong-relation-direction.java | \
+  python3 semantic_check.py - \
+  --suite suites/NetworkInterface/followUser/suite.yaml \
   --json
 ```
 
-使用 `--suite` 时不能再传 `--reference` 或 `--method`，因为 suite 已经锁定二者。参考 JML 和隐藏测试点只能放在评测端，不能随学生包发布。
+`SUBMISSION` 是 UTF-8 `.java` 或 `.jml` 文件路径；传 `-` 时从标准输入读取。无论扩展名如何，提交文本都必须包含 suite 所指定的方法声明，并在该声明紧邻位置提供 `/*@ ... @*/` JML 块。单独只有 JML 子句的 sidecar 不符合本 CLI 输入约定；`.jml` 后缀也不会触发 OpenJML sidecar 解析。命令形状为 `semantic_check.py SUBMISSION --suite SUITE --json`。suite 锁定方法、Profile、参考合同和测试点。参考 JML 与隐藏测试点只存放于评测端发布包，不随学生提交传递。
+
+正常评测以 JSON 写入标准输出。结果带有 `schema_version`、`status`，以及兼容的 `score`、`passed`、`diagnostics` 字段；`coverage`、`evaluation` 和 `solver` 依评测阶段可能缺省，例如学生格式或编码错误时不会有完整覆盖率和求解器信息。提交文件 IO、参数或 suite 配置错误返回退出码 `2`，JSON 使用 `status: "ERROR"` 且不含 `score`、`passed`；错误细节写入标准错误。退出码 `0` 表示 `PASS`，`1` 表示 `FAIL`。集成端应按 `status` 和退出码分开处理配置错误，不能把 `ERROR` 计为学生零分。
 
 ## 3. 评测过程
 
-1. 从参考 Java 和学生 Java 中找到目标方法前的 JML 块。
+1. 从评测端参考源和学生 `.java`／`.jml` 提交中找到目标方法声明及其紧邻的 JML 块。
 2. 解析 `requires`、`ensures`、`signals` 和 `assignable`。
 3. suite 选择 Profile 和测试点。
 4. Profile 将 JML 方法调用解释为抽象状态查询。
@@ -143,14 +134,14 @@ python3 semantic_check.py STUDENT.java \
   },
   "quality": {"min_mutation_score": 100},
   "solver": {"mode": "audit", "timeout_ms": 1000},
-  "reference": "../../../../../../Agent/staff/fixtures/follow_user_complete.java",
+  "reference": "reference.java",
   "points": "points.yaml"
 }
 ```
 
 当前加载器接受“JSON 语法的 YAML 子集”，目的是保持 Python 标准库零依赖。也就是说文件扩展名是 `.yaml`，但内容暂时必须符合 JSON：属性使用双引号、不能写 YAML 注释、不能使用锚点。未来切换完整 YAML 解析器时不会改变字段结构。
 
-路径均相对于 suite 文件所在目录解析。每个方法单独放在 `suites/<类名>/<方法名>/`，其中 `suite.yaml` 是入口、`points.yaml` 是测试点、`reference.java` 是本方法专用参考合同；可选 `wrong.java` 保存维护者用的反例。`followUser` 的参考合同由 `Agent/staff/fixtures/` 共享，因此其 `reference` 指向该处，不另存一份。增加新方法时复制目录结构，不复制旧点的语义；详见 [USAGE.md](USAGE.md)。
+路径均相对于 suite 文件所在目录解析。每个方法单独放在 `suites/<类名>/<方法名>/`，其中 `suite.yaml` 是入口、`points.yaml` 是测试点、`reference.java` 是本方法专用参考合同；可选 `wrong.java` 保存维护者用的反例。`followUser` 的参考合同也位于自己的方法目录中，正式 suite 不读取 `Agent/`。增加新方法时复制目录结构，不复制旧点的语义；详见 [USAGE.md](USAGE.md)。
 
 `contract_shape` 可以使用整数表示精确数量，也可以使用 `{"min": 1}`、`{"max": 3}` 或同时提供上下界。通用合同解析器本身不限制子句数量。
 
@@ -167,7 +158,7 @@ python3 semantic_check.py STUDENT.java \
 维护者可以把某个错误提交的 `SAT` 模型转成候选测试点：
 
 ```bash
-../../../.venv/bin/python smt_counterexample.py STUDENT.java \
+./.venv/bin/python smt_counterexample.py STUDENT.java \
   --suite suites/NetworkInterface/followUser/suite.yaml
 ```
 
@@ -254,7 +245,7 @@ python3 semantic_check.py STUDENT.java \
 PYTHONDONTWRITEBYTECODE=1 python3 validate_suite.py \
   suites/NetworkInterface/followUser/suite.yaml
 
-PYTHONDONTWRITEBYTECODE=1 python3 -m unittest test_semantic_judge.py -v
+python3 run_tests.py
 ```
 
 `validate_suite.py` 会加载 Profile、检查路径和 schema、解析参考 JML，并让参考合同在全部测试点上进行自比较。它报告 `generated_post` 中正常适用、被参考接受及拒绝的生成后态数量；还会逐个运行逻辑连接/比较翻转、删除否定或 `\old`、简单参数交换、布尔翻转和 frame 放宽等确定性变异，输出 `mutations.total/killed/score/survivors`。存活变异意味着当前点集无法区分该类改错，应补点或人工确认它在限定域内确实等价。变异得分只衡量这些典型错误，不是完整正确性的证明。
@@ -403,19 +394,11 @@ AST、解析器和通用运算位于 `core/expressions.py`，合同抽取位于 
 
 ## 10. 测试与排错
 
-统一评测测试：
+本组件的正式回归入口覆盖 JML–JML 评测，不要求 Java 或 OpenJML：
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 python3 -m unittest test_semantic_judge.py -v
+python3 run_tests.py
 ```
-
-全部本目录测试：
-
-```bash
-PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s . -p 'test_*.py' -v
-```
-
-当前 macOS 上 `test_wsl_openjml_converts_windows_source_path` 会因 Windows 路径语义不同而失败；它属于旧 JML–Java/OpenJML 链，不影响这里的 JML 一致性 suite。
 
 常见配置错误：
 
@@ -428,11 +411,23 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s . -p 'test_*.py' -v
 - `fixture 出现循环引用`：fixture 的 `use` 链形成了环；
 - `network_v1 不支持关系`：points 使用了 Profile 尚未声明的状态字段。
 
-CLI 退出码 `1` 表示学生 JML 未通过，退出码 `2` 表示 suite、参考合同或服务器文件配置错误。后者不能折算成学生零分。学生语法/非法符号使用 `JML_FORMAT_OR_SYMBOL`，语义差异使用各区域的 mismatch 代码；诊断中的 `lines`（若存在）是学生 Java 的 1 起始源码行号。
+CLI 退出码 `0` 表示 `PASS`，`1` 表示 `FAIL`，`2` 表示 suite、参考合同、参数或提交文件读取错误。退出码 `2` 的 JSON 使用 `status: "ERROR"`，不含 `score`、`passed`，详细错误写入标准错误；不能把配置或 IO 错误折算成学生零分。学生语法／非法符号使用 `JML_FORMAT_OR_SYMBOL`，语义差异使用各区域的 mismatch 代码；诊断中的 `lines`（若存在）是提交源码的 1 起始行号。
 
 ## 11. 安全边界
 
 - 参考 JML、隐藏测试点和完整反例状态不得发送给浏览器或 LLM。
 - 学生提交中的任意方法调用不会被执行；只解释白名单 AST。
 - Profile 配置错误与学生语义错误应分别处理，不能把服务器错误记为学生失败。
-- Web 服务仍应只绑定本地地址，除非另行加入认证、限流和资源隔离。
+- 参考 JML、隐藏测试点和完整反例状态留在评测端发布包内，不随学生提交分发。
+
+## 12. 独立发布
+
+在本目录运行回归后，可构建不依赖 `Agent/`、Java 或 OpenJML 的评测器发布包：
+
+```bash
+release_dir="$(mktemp -d /tmp/jml-judge.XXXXXX)"
+python3 run_tests.py
+python3 build_release.py --output "$release_dir/jml-judge.zip"
+```
+
+发布器拒绝覆盖已有文件；每次用新的输出路径。上例把归档放入新建的临时目录，命令输出 JSON 中的 `output` 字段可用于记录实际路径。ZIP 内以 `spec_judge/` 为根目录，包含正式 CLI、Profile、Suite、参考 JML 和测试点。将它解压到评测机后，在 `spec_judge/` 目录运行 `python3 semantic_check.py SUBMISSION --suite SUITE --json`；若启用 `solver.mode: required`，还需为评测环境安装 `requirements-smt.txt`。发布和评测机接入细节见 [USAGE.md](USAGE.md) 第 9 节及同目录 `INTEGRATION.md`。

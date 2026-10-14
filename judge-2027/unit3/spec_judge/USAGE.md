@@ -1,6 +1,6 @@
 # 手把手添加 JML 一致性测试点
 
-这份说明面向第一次维护本评测器的人。按顺序做即可；不需要先理解求解器或评测核心源码。本文主体讲“参考 JML 与学生 JML 是否一致”；需要做双链检查时，`consistency_judge.py` 会把学生 JML 临时绑定到目标 Java，再调用 OpenJML，原始文件不会被改写。
+这份说明面向第一次维护 JML–JML 评测器的人。按顺序做即可；不需要先理解求解器或评测核心源码。本文只讲评测机组件中的参考 JML、学生提交和测试集。学生 Java 实现的运行验证、OpenJML 和 Web 练习由协作者分别维护，不是本组件的输入依赖。
 
 ## 0. 先弄清楚要改什么
 
@@ -8,14 +8,14 @@
 
 | 名称 | 作用 | `followUser` 对应文件 |
 | --- | --- | --- |
-| 参考 Java | 方法声明前写着完整、正确的参考 JML；它是判定依据 | `../../../Agent/staff/fixtures/follow_user_complete.java` |
+| 参考源 | 方法声明前写着经审核的参考 JML；它是判定依据 | `suites/NetworkInterface/followUser/reference.java` |
 | Suite | 指定方法、Profile、参考文件、测试点文件和评分设置 | `suites/NetworkInterface/followUser/suite.yaml` |
 | Points | 列出输入参数、调用前状态、候选调用后状态；**不写标准答案** | `suites/NetworkInterface/followUser/points.yaml` |
 | Profile | 解释状态字段及 JML 中的方法调用，例如 `containsUser(1)` 的含义 | `profiles/network_v1/profile.py` |
 
-下文所有相对路径，除非特别说明，均以 `judge-2027/unit3/spec_judge/` 为当前目录。Suite 里的 `reference` 和 `points` 路径则**相对于 Suite 文件所在目录**，不是相对于运行命令的目录。
+下文所有相对路径，除非特别说明，均以 `judge-2027/unit3/spec_judge/` 为当前目录。Suite 里的 `reference` 和 `points` 路径则**相对于 Suite 文件所在目录**，不是相对于运行命令的目录。`followUser` 的权威参考源已收在其方法目录中，正式 suite 不依赖 `Agent/`。
 
-每个方法各有一个 `suites/<类名>/<方法名>/` 目录：`suite.yaml` 是评测入口，`points.yaml` 放测试点，本方法专用的参考文件和错误样例分别可放 `reference.java`、`wrong.java`。`followUser` 的参考 Java 已在 `Agent/staff/fixtures/`，因此只在 Suite 中引用，不额外复制。添加一个新的测试点时仍写入该方法的**同一个** `points.yaml` 的 `points` 数组，不要为每个测试点建目录。
+每个方法各有一个 `suites/<类名>/<方法名>/` 目录：`suite.yaml` 是评测入口，`points.yaml` 放测试点，本方法专用的参考文件和错误样例分别可放 `reference.java`、`wrong.java`。添加一个新的测试点时仍写入该方法的**同一个** `points.yaml` 的 `points` 数组，不要为每个测试点建目录。
 
 先判断属于哪种情况：
 
@@ -23,6 +23,18 @@
 2. **新方法或新类，但状态和 JML 查询仍是“用户／关注／粉丝／屏蔽”**：新建参考 Java、Suite、Points，继续用 `network_v1`，见第 6 节。类名不同并不必然需要新 Profile。
 3. **新方法或新类，状态是一个整数，JML 只查询 `getValue()`**：可继续用 `counter_v1`，见第 7 节。
 4. **全新领域状态或新的 JML 查询**：除了上述文件，还必须实现或扩展 Profile，见第 8 节。仅写 JSON 格式的测试点无法让评测器理解未知的查询方法。
+
+### 0.1 CLI 提交格式
+
+正式入口形状为：
+
+```bash
+python3 semantic_check.py SUBMISSION --suite SUITE --json
+```
+
+`SUBMISSION` 可以是 UTF-8 `.java` 或 `.jml` 文件，也可以写 `-` 从标准输入读取。文件内容必须包含 Suite 所指定的方法声明，以及紧邻该声明的 `/*@ ... @*/` JML 块。只有 JML 子句而没有方法声明的 sidecar 不符合输入约定；`.jml` 扩展名也不表示支持完整 OpenJML sidecar 语法。评测器只解释 JML 子集，不编译或运行 Java。
+
+正常 JSON 结果带 `schema_version: 1`、`status: "PASS"` 或 `"FAIL"`，以及兼容的 `score`、`passed`、`diagnostics` 字段。`coverage`、`evaluation` 和 `solver` 可能缺省；例如学生格式或编码错误会产生分数和诊断，但没有完整覆盖统计或求解器结果。退出码 `0` 表示 PASS，`1` 表示 FAIL。提交文件 IO、参数或 Suite 配置错误退出码为 `2`，JSON 使用 `status: "ERROR"` 且不包含 `score`、`passed`；详细错误写入标准错误。评测机应把 ERROR 视作评测配置/输入错误，不能当作学生零分。
 
 ## 1. 准备环境，并跑通原有例子
 
@@ -32,7 +44,14 @@
 cd judge-2027/unit3/spec_judge
 ```
 
-以下命令使用 macOS/Linux 的 `python3`。Windows PowerShell 可先运行 `Set-Location judge-2027\unit3\spec_judge` 和 `$env:PYTHONDONTWRITEBYTECODE = "1"`，然后将下文每条命令开头的 `PYTHONDONTWRITEBYTECODE=1 python3` 换成 `python`（或本机实际安装的 Python 命令）。固定测试点模式只需要 Python 标准库，不需要先安装 Z3；若 `solver.mode` 为 `required`，则必须先按 [README](README.md#可选安装-smt) 安装 `requirements-smt.txt`。
+以下命令使用 macOS/Linux 的 `python3`。Windows PowerShell 先运行：
+
+```powershell
+Set-Location judge-2027\unit3\spec_judge
+$env:PYTHONDONTWRITEBYTECODE = "1"
+```
+
+后续命令将 `python3` 换成 `python`，移除 Bash 形式的 `PYTHONDONTWRITEBYTECODE=1` 前缀，并把行末 `\` 换成 PowerShell 反引号 `` ` ``；也可以把命令合并成一行。固定测试点模式只需要 Python 标准库，不需要先安装 Z3；若 `solver.mode` 为 `required`，则必须先按 [README](README.md#可选安装-smt) 安装 `requirements-smt.txt`。
 
 先验证已有 Suite：
 
@@ -44,11 +63,11 @@ PYTHONDONTWRITEBYTECODE=1 python3 validate_suite.py suites/NetworkInterface/foll
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 python3 semantic_check.py \
-  ../../../Agent/staff/fixtures/follow_user_complete.java \
+  suites/NetworkInterface/followUser/reference.java \
   --suite suites/NetworkInterface/followUser/suite.yaml --json
 ```
 
-应看到 `"score": 100`、`"passed": true`。如果这里还不能运行，先解决环境或原有配置问题，避免把旧问题误认为新测试点造成的。
+应看到 `"schema_version": 1`、`"status": "PASS"`、`"score": 100`、`"passed": true`。如果这里还不能运行，先解决环境或原有配置问题，避免把旧问题误认为新测试点造成的。
 
 ## 2. 测试点究竟在测什么
 
@@ -291,14 +310,14 @@ PYTHONDONTWRITEBYTECODE=1 python3 semantic_check.py \
   --suite suites/NetworkInterface/unfollowUser/suite.yaml --json
 ```
 
-最后一条用参考文件自评，预期 `score: 100` 且 `passed: true`。然后在同一方法目录另存一个**故意错误**的学生 Java，例如 `wrong.java`：保留第二个 `ensures` 子句但把它的条件改成 `true`，再以同一个 Suite 运行 `semantic_check.py suites/NetworkInterface/unfollowUser/wrong.java --suite suites/NetworkInterface/unfollowUser/suite.yaml --json`。预期至少一个相关区域失分；若错误样例仍得 100，说明测试点没有区分出这类错误，应补候选后态再验证。不要直接删除该子句：本示例的 `contract_shape` 要求恰好两条 `ensures`，删除会先触发结构问题，无法单独验证点集的区分能力。`validate_suite.py` 的 `mutations.survivors` 也会提示典型错误中哪些还没被测试点识别。
+最后一条用参考文件自评，预期 `schema_version: 1`、`status: "PASS"`、`score: 100` 且 `passed: true`。然后在同一方法目录另存一个**故意错误**的学生源，例如 `wrong.java`：保留第二个 `ensures` 子句但把它的条件改成 `true`，再以同一个 Suite 运行 `semantic_check.py suites/NetworkInterface/unfollowUser/wrong.java --suite suites/NetworkInterface/unfollowUser/suite.yaml --json`。预期 `status: "FAIL"` 且至少一个相关区域失分；若错误样例仍得 100，说明测试点没有区分出这类错误，应补候选后态再验证。不要直接删除该子句：本示例的 `contract_shape` 要求恰好两条 `ensures`，删除会先触发结构问题，无法单独验证点集的区分能力。`validate_suite.py` 的 `mutations.survivors` 也会提示典型错误中哪些还没被测试点识别。
 
 当前这份 `unfollowUser` Suite 的预检可通过，但变异识别率是 `6/7 ≈ 86%`。唯一存活的 `delete_conjunct.2` 删除了前置条件中显式写出的“两个用户存在”，只保留“id1 关注 id2”。在 `network_v1` 中，合法的关注关系已经保证两端用户存在，所以这个变异在当前抽象模型内等价，并不表示必须再加一个测试点。变异识别率不是学生分数；碰到其他存活变异时也应先判断是否真的改变了语义，再决定是否补点。
 
-评测通过的退出码为 0，学生合同不一致为 1，Suite／参考文件等配置错误为 2；**配置错误不能当学生零分**。最后运行回归测试：
+参考合同通过自评的退出码为 0，学生合同不一致为 1，Suite／参考文件／提交读取或参数错误为 2；退出码 2 返回 `status: "ERROR"`，不包含学生分数，**配置或输入错误不能当学生零分**。最后运行回归测试：
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 python3 -m unittest test_semantic_judge.py -v
+python3 run_tests.py
 ```
 
 ### 6.5 换成另一个 Java 类
@@ -334,93 +353,95 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m unittest test_semantic_judge.py -v
 
 如果新方法仅仅换了名称或参数，而 JML 中所用查询都已存在，**不需要**因为 `parameter_types()` 里没有该方法而修改现有 Profile：Suite 会提供本方法的参数类型并绑定它。只有新状态或新查询才需要 Profile 代码改动。
 
-## 9. 把新方法接入 Web UI：从 Suite 到学生页面
+## 9. 评测机接入与测试集发布
 
-命令行 Suite 可用，**不等于 Web 自动出现新题**。目前一个 Web 进程启动时只加载一个练习目录。这个目录的 `exercise.json` 必须指向所选 Suite；Web 的“提交审查”才会使用该 Suite 评测学生填入的 JML。以下继续使用第 6 节的 `unfollowUser`，换其他类／方法时只需替换相应的文件名、方法名、题面和空位，流程相同。
+本节说明怎样验证一套 JML–JML 评测、制作独立组件包并把学生提交交给 CLI。它不配置 Web 练习，也不执行 Java 方法或 OpenJML。CLI 当前一次评一个提交源和一个 Suite；多方法或多 Suite 的分数汇总由评测机的调用方按课程协议处理，本组件不定义汇总规则。
 
-### 9.1 先确认服务端 Suite 已能独立评测
+### 9.1 确认评测材料完整并留在服务端
 
-先按第 6.1～6.4 节创建并验证 `suites/NetworkInterface/unfollowUser/` 中的 `reference.java`、`suite.yaml`、`points.yaml`；若是新领域，还须先完成第 8 节的 Profile。至少确认 `validate_suite.py` 成功、参考 JML 自评 100 分、一个有意写错的 JML 会失分。**不要**把这些文件复制到学生练习目录或公开的静态资源目录：它们是服务端评测材料。
+每个方法使用一个 `suites/<类名>/<方法名>/` 目录，至少包含：
 
-### 9.2 准备出题输入
+- `reference.java`：已审核的参考 JML 和目标方法声明；
+- `suite.yaml`：目标方法、Profile、评分区域和相对文件路径；
+- `points.yaml`：有限抽象状态上的前态和候选后态。
 
-在 `Agent/` 下新建 `cases/unfollow_user/requirement.md`，用学生能看到的自然语言写清方法功能、输入、正常／异常情况；不要直接贴参考 JML。对于第 6 节的示例，可以先写：
+领域语义由 `profiles/` 中的 Profile 提供。参考源、suite、points、Profile 和隐藏样例都属于评测侧数据；它们随内部评测机包发布或安装，不能随学生提交包公开。新增方法或新领域按第 6～8 节准备这些内容。
 
-```markdown
-# unfollowUser
+### 9.2 验证正例、反例和完整回归
 
-输入两个用户 ID：id1 是取消关注的人，id2 是被取消关注的人。
-本练习只考虑两个用户都存在、且 id1 已经关注 id2 的正常调用。
-调用后，id1 不再关注 id2，id2 的粉丝列表也不再包含 id1。
-```
-
-这段题面只是示例；实际发布前应按课程的真实题意补足不允许修改的其它关系、异常或边界条件，并同步修改参考 JML 和测试点。再新建 `cases/unfollow_user/blank_plan.json`，例如：
-
-```json
-{
-  "status": "teacher_approved",
-  "method": "NetworkInterface.unfollowUser",
-  "student_owned_blanks": [
-    {"id": "PRE", "source_jml_selector": {"clause": "requires", "occurrence": 1}},
-    {"id": "POST_FORWARD", "source_jml_selector": {"clause": "ensures", "occurrence": 1}},
-    {"id": "POST_INVERSE", "source_jml_selector": {"clause": "ensures", "occurrence": 2}}
-  ]
-}
-```
-
-`method` 的最后一段必须等于 Suite 的 `method`；`source_jml_selector` 按目标方法 JML 块内**同类子句从 1 开始**计数。这个计划表示把第 6.1 节参考文件中的一条 `requires` 和两条 `ensures` 的条件挖空，`assignable` 等未选内容保持不变。请逐项核对空位是否确实应由学生填写。出题工具目前要求参考 JML 紧邻方法声明，且该方法声明写明 `public`；第 6.1 节的示例已满足这两点。如果使用自己的官方接口，先核对它是否符合这一格式。
-
-### 9.3 一条命令生成并绑定 Web 练习包
-
-从仓库根目录先进入 `Agent/`。下面是假设目标练习目录**尚不存在**时的首次发布命令；当前工作区已生成 `exercises/unfollow_user/`，重复执行会因防覆盖机制而停止。要检查或使用现有练习，直接跳到第 9.4 节；需要重新出题时换一个新的 `--exercise-dir`，并核对生成内容。macOS／Linux 命令：
+以 `followUser` 为例，在 `spec_judge/` 目录执行：
 
 ```bash
-cd Agent
-python3 -m hw9_agent publish-exercise \
-  --interface-file ../judge-2027/unit3/spec_judge/suites/NetworkInterface/unfollowUser/reference.java \
-  --requirement cases/unfollow_user/requirement.md \
-  --blank-plan cases/unfollow_user/blank_plan.json \
-  --exercise-dir exercises/unfollow_user \
-  --semantic-suite ../judge-2027/unit3/spec_judge/suites/NetworkInterface/unfollowUser/suite.yaml \
-  --title "unfollowUser JML 填空练习"
+python3 validate_suite.py suites/NetworkInterface/followUser/suite.yaml
+python3 semantic_check.py \
+  suites/NetworkInterface/followUser/reference.java \
+  --suite suites/NetworkInterface/followUser/suite.yaml --json
+python3 semantic_check.py \
+  tests/fixtures/followUser/wrong-relation-direction.java \
+  --suite suites/NetworkInterface/followUser/suite.yaml --json
+python3 run_tests.py
 ```
 
-Windows PowerShell 同样先进入 `Agent`，将上述命令中的 `python3` 改为 `python`，把每个续行符 `\` 改成 PowerShell 的反引号 `` ` ``；或者直接把整条命令写在一行。路径中的 `/` 在这里也可使用。`--title` 可省略；其余路径从运行命令时所在的 `Agent/` 出发。`--interface-file` 是带**完整参考 JML** 的出题输入；`--semantic-suite` 是服务端评测配置，不会作为题目内容发给浏览器。命令会创建 `exercises/unfollow_user/template.java`、`requirement.md`、`exercise.json` 和空的 `samples/`。目标目录必须事先不存在，以免覆盖已有学生提交样例或发布物。
+第一条检查 suite、参考合同和测试点；参考文件自评应返回 `status: "PASS"`、`score: 100`。错误 fixture 应返回 `status: "FAIL"` 和退出码 `1`。最后一条运行组件正式 JML–JML 回归集，不需要安装 Java 或 OpenJML。新增或改动 Profile 时也要补相应测试，再运行正式回归。
 
-发布命令会检查 Suite 文件存在、能解析、其中的 `method` 与练习方法名相同，然后自动把 `semantic_suite` 写进 `exercise.json`。因此新建练习时**不必手算相对路径，也不必手写 `exercise.json`**。它不会替你审核参考规格或测试点质量，故第 9.1 节仍不可省略。
+### 9.3 构建和检查独立评测包
 
-### 9.4 发布前核对并启动
-
-打开生成的 `exercises/unfollow_user/template.java`，确认只在预期的三处出现 `{{PRE}}`、`{{POST_FORWARD}}`、`{{POST_INVERSE}}`，其它 Java/JML 未意外变化。打开 `exercises/unfollow_user/exercise.json`，应看到 `"method": "unfollowUser"`，以及类似下面的服务器端路径：
-
-```json
-"semantic_suite": "../judge-2027/unit3/spec_judge/suites/NetworkInterface/unfollowUser/suite.yaml"
-```
-
-这个值**相对于 `Agent/`**，而非相对于 `exercise.json`；发布命令会自动计算，实际值以生成结果为准。检查 `exercises/unfollow_user/` 内没有参考答案、Points 或隐藏样例。若要放学生可见的演示 Java，可放进该目录的 `samples/`，但不要放标准答案；添加后重启 Web 才会更新样例列表。
-
-仍在 `Agent/` 运行：
+完成套件校验与回归后，从 `spec_judge/` 目录构建发布 ZIP。构建器不会覆盖已有 ZIP，因此每次先创建新的临时目录，避免与历史归档重名；命令输出 JSON 中的 `output` 字段记录了归档的完整路径，`sha256` 可作为部署版本标识。
 
 ```bash
-python3 -m hw9_agent web --exercise-dir exercises/unfollow_user --host 127.0.0.1 --port 8000
+release_dir="$(mktemp -d /tmp/jml-judge.XXXXXX)"
+python3 build_release.py --output "$release_dir/jml-judge.zip"
+unzip -l "$release_dir/jml-judge.zip"
+unzip -q "$release_dir/jml-judge.zip" -d "$release_dir/unpacked"
+cd "$release_dir/unpacked/spec_judge"
+python3 run_tests.py
+python3 validate_suite.py suites/NetworkInterface/followUser/suite.yaml
+python3 semantic_check.py \
+  suites/NetworkInterface/followUser/reference.java \
+  --suite suites/NetworkInterface/followUser/suite.yaml --json
 ```
 
-PowerShell 把 `python3` 改成 `python`。在浏览器打开 `http://127.0.0.1:8000/`，应看到新标题和 `unfollowUser` 的空位。填完空位后点“提交审查”，核对确定性评分确实来自新 Suite；无 DeepSeek API 密钥时仍会直接显示评测脚本结果，有密钥时再追加模型建议。可用正确填法和故意错误填法各试一次。新练习默认没有演示案例，因此不会显示“运行双检测”；该按钮只属于另行配置了 `consistency_demo_cases` 的独立演示路径，**不用于验证这个新 Suite**。
+PowerShell 可使用 GUID 创建同样唯一的输出目录，`Expand-Archive` 用于解压：
 
-### 9.5 已有练习包、增加测试点、同时发布多道题
+```powershell
+$ReleaseDir = Join-Path ([System.IO.Path]::GetTempPath()) ("jml-judge-" + [guid]::NewGuid().ToString("N"))
+New-Item -ItemType Directory -Path $ReleaseDir | Out-Null
+$ArchivePath = Join-Path $ReleaseDir "jml-judge.zip"
+python build_release.py --output $ArchivePath
+$UnpackDir = Join-Path $ReleaseDir "unpacked"
+Expand-Archive -LiteralPath $ArchivePath -DestinationPath $UnpackDir
+Set-Location (Join-Path $UnpackDir "spec_judge")
+python run_tests.py
+python validate_suite.py suites/NetworkInterface/followUser/suite.yaml
+python semantic_check.py suites/NetworkInterface/followUser/reference.java --suite suites/NetworkInterface/followUser/suite.yaml --json
+```
 
-若练习包已存在，`publish-exercise` 不会覆盖它。只需在其 `exercise.json` 的顶层增加或修改 `semantic_suite`，值写成从 `Agent/` 到 Suite 文件的相对路径，注意 JSON 逗号；然后**重启 Web 进程**，因为练习配置在启动时加载。应同时核对练习的 `method` 与 Suite 的 `method` 相同。若需重做模板或空位，建议使用新的练习目录重新发布，再人工核对，不要直接覆盖旧包。
+归档内以 `spec_judge/` 为根目录，包含正式 CLI、Profiles、Suites、参考源和测试点。解压后的回归、自评和 suite 校验能确认包内材料可用。独立包不需要 `Agent/`、Java 或 OpenJML；如果 suite 选择 `solver.mode: "required"`，评测环境仍须安装 `requirements-smt.txt` 中的依赖。把该包部署到评测侧，避免将含参考答案或隐藏测试点的归档发给学生。
 
-若只是给**同一个方法的现有 Suite 加测试点**，按第 3～5 节修改其 Points 文件并验证即可；下一次“提交审查”会重新运行评测脚本读取点集，通常不必重启 Web。页面不会列出隐藏测试点，只会反映新的分数和诊断；浏览器中已经显示的旧结果不会自动重算，需要重新提交。
+### 9.4 将学生提交交给 CLI
 
-目前页面没有“选择题目／方法”的下拉框。要让同一时间两道题都可访问，可分别启动两个 Web 进程，传入不同的 `--exercise-dir` 和 `--port`；单个进程只服务启动时指定的那道题。要实现一个入口切换多题，需另行增加路由和练习目录列表，当前版本尚未提供。
+评测机可把已读取的 UTF-8 提交内容通过标准输入交给进程，并将结果流分别捕获：
+
+```bash
+python3 semantic_check.py - \
+  --suite suites/NetworkInterface/followUser/suite.yaml \
+  --json < submission.java
+```
+
+提交也可以是含目标方法与紧邻 JML 块的 `.jml` 文件；文件扩展名不改变解析方式。CLI 将 JSON 结果写到标准输出，详细 IO／参数／Suite 配置错误写到标准错误。`status: "PASS"`、`"FAIL"`、`"ERROR"` 分别表示通过、不一致、无法执行评测。调用方应保留退出码：`0` 对应 PASS，`1` 对应 FAIL，`2` 对应 ERROR；ERROR 不应转换为学生分数。协议字段与集成注意事项见同目录 [INTEGRATION.md](INTEGRATION.md)。
+
+### 9.5 更新测试集并重新发布
+
+给已有方法加点时，只改该方法 `points.yaml` 的 `points` 或 `generators`，不要在 Points 中写标准真假答案；先运行 `validate_suite.py`，再运行 `python3 run_tests.py`，最后重新构建评测 ZIP。调整参考 JML 或评分策略时，也要复核该方法的正反例和质量检查。新方法新建自己的 suite 目录，沿用已有 Profile 或先完成 Profile 扩展，具体步骤仍见第 6～8 节。
+
+发布包是评测机组件，不是学生练习包。Web 页面、课程题面、学生 Java 实现及 JML–Java/OpenJML 验证由协作者按其接口维护；不要把这些流程或依赖加入本组件的 Suite 或发布脚本。
 
 ## 10. 报错时按这个顺序排查
 
 1. `json.tool` 失败：先检查双引号、逗号、花括号；文件虽然叫 `.yaml`，现在用的是 JSON 兼容语法。
 2. `reference 或 points 文件不存在`：路径相对于 Suite 文件目录，不是终端当前目录。
 3. `未知 profile`：检查 Suite 的 `profile` 名称以及 `profiles/registry.py`。
-4. `未找到方法`／`未找到紧邻方法的 JML 注释块`：参考或学生 Java 的方法名要与 Suite 一致，JML 须写在方法前的 `/*@ ... @*/` 中。
+4. `未找到方法`／`未找到紧邻方法的 JML 注释块`：参考源或学生 `.java`／`.jml` 中的方法名要与 Suite 一致，JML 须紧邻方法声明并写在 `/*@ ... @*/` 中。
 5. `未定义的变量`／`不允许调用接口外函数`：检查 Suite 的 `parameters` 及 Profile 的 `allowed_calls`、`symbols`；不要在 JML 中使用尚未实现的查询。
 6. `参数必须恰好是 ...`：每个点的 `args` 键名必须与 Suite 的 `parameters` 一模一样，包括无参数时的 `{}`。
 7. `未知 fixture`／`fixture 出现循环引用`：检查 `use` 名称和引用链。
