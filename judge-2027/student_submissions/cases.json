@@ -1,0 +1,166 @@
+{
+  "schema_version": 1,
+  "description": "两份正确、十份错误的模拟学生 followUser 提交，预期来自配套独立发布包的实际运行。",
+  "suite": "suites/NetworkInterface/followUser/suite.yaml",
+  "judge": {
+    "archive": "jml-judge-2026-11-03.zip",
+    "archive_sha256": "01bb965c5faf1172256571a135bc074bcce77d5f0c7e321b11d0731619daf121",
+    "release_manifest_sha256": "cecaac73a89b67c8d51accfe49873dce714c05cffb008a260f2caf5b3b3dc49f"
+  },
+  "cases": [
+    {
+      "id": "01_correct",
+      "label": "正确：完整 followUser 合同",
+      "file": "inputs/01_correct.jml",
+      "source_sha256": "64483d187d7df4e6fda0568c90ca95b88ef6e292e6c46880e83a5aee783ff417",
+      "expected_exit_code": 0,
+      "expected_status": "PASS",
+      "expected_score": 100,
+      "expected_diagnostic_codes": [],
+      "expected_stdout": "expected/01_correct.stdout.json"
+    },
+    {
+      "id": "02_equivalent",
+      "label": "正确：条件调序与后置条件合并",
+      "file": "inputs/02_equivalent.java",
+      "source_sha256": "e649a02fc745cd6f4674183d355d5f4d20acfdd70c2a4df693956b9913729f01",
+      "expected_exit_code": 0,
+      "expected_status": "PASS",
+      "expected_score": 100,
+      "expected_diagnostic_codes": [],
+      "expected_stdout": "expected/02_equivalent.stdout.json"
+    },
+    {
+      "id": "03_missing_self_check",
+      "label": "错误：正常条件遗漏自关注检查",
+      "file": "inputs/03_missing_self_check.jml",
+      "source_sha256": "448db65fdf6017d66366b59b31a6d4d55b8f2acc3a232e068139cfbcd16096ea",
+      "expected_exit_code": 1,
+      "expected_status": "FAIL",
+      "expected_score": 98,
+      "expected_diagnostic_codes": [
+        "NORMAL_CONDITION_MISMATCH"
+      ],
+      "expected_stdout": "expected/03_missing_self_check.stdout.json"
+    },
+    {
+      "id": "04_weak_inverse_post",
+      "label": "错误：反向粉丝后置条件弱化为 true",
+      "file": "inputs/04_weak_inverse_post.jml",
+      "source_sha256": "1f335e9d3f102d4e995cf9eb4393a618f5207947bc915160f20b72441ea36223",
+      "expected_exit_code": 1,
+      "expected_status": "FAIL",
+      "expected_score": 93,
+      "expected_diagnostic_codes": [
+        "POSTCONDITION_MISMATCH"
+      ],
+      "expected_stdout": "expected/04_weak_inverse_post.stdout.json"
+    },
+    {
+      "id": "05_wrong_direction",
+      "label": "错误：两条后置关系方向写反",
+      "file": "inputs/05_wrong_direction.java",
+      "source_sha256": "0dd3c4571925b921d3c6a4244e333f4370de9d3bacb8bf43f17982dee2621e5b",
+      "expected_exit_code": 1,
+      "expected_status": "FAIL",
+      "expected_score": 86,
+      "expected_diagnostic_codes": [
+        "POSTCONDITION_MISMATCH",
+        "POSTCONDITION_MISMATCH"
+      ],
+      "expected_stdout": "expected/05_wrong_direction.stdout.json"
+    },
+    {
+      "id": "06_overlapping_exceptions",
+      "label": "错误：用户缺失异常条件发生重叠",
+      "file": "inputs/06_overlapping_exceptions.jml",
+      "source_sha256": "b60c3c114c1fed0bf0ea2449c324ce089dbecadddfea8e4892a184201bb64b60",
+      "expected_exit_code": 1,
+      "expected_status": "FAIL",
+      "expected_score": 93,
+      "expected_diagnostic_codes": [
+        "EXCEPTION_PARTITION_MISMATCH"
+      ],
+      "expected_stdout": "expected/06_overlapping_exceptions.stdout.json"
+    },
+    {
+      "id": "07_constant_id_restriction",
+      "label": "错误：额外限定 id1 必须等于 1",
+      "file": "inputs/07_constant_id_restriction.jml",
+      "source_sha256": "2616fb259a461444b4d1cd2ce456ada0c5d94efa3b5013a221529ae1abb6993e",
+      "expected_exit_code": 1,
+      "expected_status": "FAIL",
+      "expected_score": 79,
+      "expected_diagnostic_codes": [
+        "NORMAL_CONDITION_MISMATCH",
+        "LOCKED_CLAUSE_CHANGED"
+      ],
+      "expected_stdout": "expected/07_constant_id_restriction.stdout.json"
+    },
+    {
+      "id": "08_wrong_frame",
+      "label": "错误：正常行为允许修改任意位置",
+      "file": "inputs/08_wrong_frame.jml",
+      "source_sha256": "9186c2037396827c58660415ab7e82e12540cc483051cffedc6c9d9eed03bb36",
+      "expected_exit_code": 1,
+      "expected_status": "FAIL",
+      "expected_score": 96,
+      "expected_diagnostic_codes": [
+        "LOCKED_CLAUSE_CHANGED"
+      ],
+      "expected_stdout": "expected/08_wrong_frame.stdout.json"
+    },
+    {
+      "id": "09_unknown_query",
+      "label": "错误：使用不存在的查询 hasUser",
+      "file": "inputs/09_unknown_query.jml",
+      "source_sha256": "066d84e418fde4c380fbd17135f6eaa1e6882546680739b4861a21765300fe30",
+      "expected_exit_code": 1,
+      "expected_status": "FAIL",
+      "expected_score": 0,
+      "expected_diagnostic_codes": [
+        "JML_FORMAT_OR_SYMBOL"
+      ],
+      "expected_stdout": "expected/09_unknown_query.stdout.json"
+    },
+    {
+      "id": "10_wrong_signature",
+      "label": "错误：方法返回类型被修改",
+      "file": "inputs/10_wrong_signature.jml",
+      "source_sha256": "6fbd1e0d7a33bd0134ef2ef347b3ae046277aa3e39b6a3ff4dd2bb6543d89b70",
+      "expected_exit_code": 1,
+      "expected_status": "FAIL",
+      "expected_score": 0,
+      "expected_diagnostic_codes": [
+        "JML_FORMAT_OR_SYMBOL"
+      ],
+      "expected_stdout": "expected/10_wrong_signature.stdout.json"
+    },
+    {
+      "id": "11_unsupported_clause",
+      "label": "错误：加入尚未支持的 signals_only",
+      "file": "inputs/11_unsupported_clause.jml",
+      "source_sha256": "2e190aa49abd40a042ff9c0ee59802608b9ccd768e431852f96f5f3c206b73ea",
+      "expected_exit_code": 1,
+      "expected_status": "FAIL",
+      "expected_score": 0,
+      "expected_diagnostic_codes": [
+        "JML_FORMAT_OR_SYMBOL"
+      ],
+      "expected_stdout": "expected/11_unsupported_clause.stdout.json"
+    },
+    {
+      "id": "12_detached_contract",
+      "label": "错误：合同属于其他方法",
+      "file": "inputs/12_detached_contract.jml",
+      "source_sha256": "061c260f999ba24242744bf1d4edc48a458026de86fa6a5aef2de28605cbdc0c",
+      "expected_exit_code": 1,
+      "expected_status": "FAIL",
+      "expected_score": 0,
+      "expected_diagnostic_codes": [
+        "JML_FORMAT_OR_SYMBOL"
+      ],
+      "expected_stdout": "expected/12_detached_contract.stdout.json"
+    }
+  ]
+}

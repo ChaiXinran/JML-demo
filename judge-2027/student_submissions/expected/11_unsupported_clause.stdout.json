@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "status": "FAIL",
+  "score": 0,
+  "passed": false,
+  "diagnostics": [
+    {
+      "code": "JML_FORMAT_OR_SYMBOL",
+      "location": "SUBMISSION",
+      "category": "JML 格式或接口符号",
+      "observation": "第 6 行不支持的 JML 条款或文本：signals_only",
+      "guidance": "检查空位是否填完、JML 语法是否完整，以及是否只使用模板允许的接口符号。"
+    }
+  ],
+  "evaluation": {
+    "profile": "network_v1",
+    "suite": "NetworkInterface.followUser",
+    "suite_version": 1,
+    "guarantee_scope": "fixed_test_points"
+  }
+}

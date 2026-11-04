@@ -335,11 +335,18 @@ def load_suite(
             isinstance(value, str) and value for value in slots
         ):
             raise ProfileError(f"diagnostics.{region}.slots 必须是字符串数组")
-    if not isinstance(quality, dict) or set(quality) - {"min_mutation_score"}:
-        raise ProfileError("suite 的 quality 只支持 min_mutation_score")
+    if not isinstance(quality, dict) or set(quality) - {"min_mutation_score", "equivalent_mutations"}:
+        raise ProfileError("suite 的 quality 只支持 min_mutation_score 和 equivalent_mutations")
     minimum_mutation_score = quality.get("min_mutation_score", 0)
     if not isinstance(minimum_mutation_score, int) or not 0 <= minimum_mutation_score <= 100:
         raise ProfileError("quality.min_mutation_score 必须是 0 到 100 的整数")
+    equivalent_mutations = quality.get("equivalent_mutations", {})
+    if not isinstance(equivalent_mutations, dict) or not all(
+        isinstance(name, str) and name and isinstance(digest, str)
+        and len(digest) == 64 and all(char in "0123456789abcdef" for char in digest)
+        for name, digest in equivalent_mutations.items()
+    ):
+        raise ProfileError("quality.equivalent_mutations 必须将变异 ID 映射到审核过的源码 SHA-256")
     if not isinstance(solver, dict) or set(solver) - {"mode", "timeout_ms"}:
         raise ProfileError("suite 的 solver 只支持 mode 和 timeout_ms")
     solver_mode = solver.get("mode", "off")

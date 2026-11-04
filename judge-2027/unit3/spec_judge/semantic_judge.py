@@ -364,11 +364,13 @@ def evaluate_sources(
 ) -> SemanticResult:
     try:
         reference = parse_contract(reference_source, method_name, profile)
-    except (SpecError, ProfileError) as error:
+    except (SpecError, ProfileError, RecursionError) as error:
         raise ProfileError(f"参考合同或评测配置无效：{error}") from error
     try:
         candidate = parse_contract(student_source, method_name, profile)
-    except SpecError as error:
+        if candidate.signature != reference.signature:
+            raise SpecError("目标方法签名与参考声明不一致：请核对返回类型、参数、static 和 throws")
+    except (SpecError, RecursionError) as error:
         return SemanticResult(0, False, (Diagnostic(
             SemanticDiagnosticCode.JML_FORMAT_OR_SYMBOL.value, "SUBMISSION", "JML 格式或接口符号",
             str(error), "检查空位是否填完、JML 语法是否完整，以及是否只使用模板允许的接口符号。",

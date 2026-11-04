@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "status": "FAIL",
+  "score": 96,
+  "passed": false,
+  "diagnostics": [
+    {
+      "code": "LOCKED_CLAUSE_CHANGED",
+      "location": "LOCKED_FRAME_OR_OUTPUT",
+      "category": "锁定规格被修改",
+      "observation": "assignable 或成功输出规格与模板中的锁定内容不一致。",
+      "guidance": "仅填写分配给学生的空位，不要修改锁定子句。",
+      "lines": [
+        6,
+        9,
+        12
+      ]
+    }
+  ],
+  "coverage": {
+    "applicability": {
+      "passed_weight": 12,
+      "total_weight": 12
+    },
+    "postcondition": {
+      "passed_weight": 13,
+      "total_weight": 13
+    },
+    "exceptions": {
+      "passed_weight": 12,
+      "total_weight": 12
+    },
+    "locked": {
+      "passed_weight": 8,
+      "total_weight": 13
+    }
+  },
+  "evaluation": {
+    "profile": "network_v1",
+    "suite": "NetworkInterface.followUser",
+    "suite_version": 1,
+    "guarantee_scope": "fixed_test_points"
+  },
+  "solver": {
+    "applicability": {
+      "status": "UNAVAILABLE",
+      "reason": "未安装 z3-solver"
+    },
+    "postcondition": {
+      "status": "UNAVAILABLE",
+      "reason": "未安装 z3-solver"
+    },
+    "exceptions": {
+      "status": "UNAVAILABLE",
+      "reason": "未安装 z3-solver"
+    }
+  }
+}

@@ -34,7 +34,12 @@
       ]
     }
   },
-  "quality": {"min_mutation_score": 100},
+  "quality": {
+    "min_mutation_score": 100,
+    "equivalent_mutations": {
+      "delete_conjunct.8": "21d5230797faedcfdc105b00aba95ac2a1af344401dc2f70a48e97d5d69dbfe7"
+    }
+  },
   "solver": {"mode": "audit", "timeout_ms": 1000},
   "reference": "reference.java",
   "points": "points.yaml"

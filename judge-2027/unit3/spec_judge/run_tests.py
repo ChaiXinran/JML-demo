@@ -10,6 +10,7 @@ def main() -> int:
     suite = unittest.defaultTestLoader.loadTestsFromNames([
         "test_semantic_judge",
         "test_cli",
+        "test_hardening",
     ])
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1

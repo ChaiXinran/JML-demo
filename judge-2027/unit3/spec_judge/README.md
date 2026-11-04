@@ -2,11 +2,11 @@
 
 第一次添加测试点或新方法，请先看 [手把手使用说明](USAGE.md)；它提供完整的文件示例、逐步命令与排错顺序。
 
-本目录维护一个独立的 JML–JML 评测器组件。正式入口 `semantic_check.py` 在 suite 声明的抽象状态上比较参考 JML 与学生提交中的 JML，不编译或运行学生 Java，也不调用 Web、Java 或 OpenJML。学生可提交 UTF-8 的 `.java` 或 `.jml` 源文本；两种格式都必须包含目标方法声明及其紧邻的 JML 注释块。这里的 `.jml` 只是接受的文件扩展名，不表示支持完整 OpenJML sidecar 文件格式。Web、Java 实现和 OpenJML 验证由协作者维护，和本组件的 JML–JML 评测分别接入。`consistency_judge.py`、`runtime_verifier.py`、`verification_evidence.py` 及其历史测试和 Java 示例暂留目录中供兼容，不属于本轮维护范围，也不进入独立发布包；`spec_judge.py` 是早期原型。
+本目录维护一个独立的 JML–JML 评测器组件。正式入口 `semantic_check.py` 在 suite 声明的抽象状态上比较参考 JML 与学生提交中的 JML，不编译或运行学生 Java，也不调用 Web、Java 或 OpenJML。学生可提交 UTF-8 的 `.java` 或 `.jml` 源文本；两种格式都必须包含唯一目标方法声明，以及归属于该声明的唯一完整 JML 注释块。合同块与方法声明之间允许夹有普通注释；合同块内部的普通注释不保证支持。这里的 `.jml` 只是接受的文件扩展名，不表示支持完整 OpenJML sidecar 文件格式。源码识别只覆盖本组件所需的受限格式，不是完整 Java 解析器。Web、Java 实现和 OpenJML 验证由协作者维护，和本组件的 JML–JML 评测分别接入。`consistency_judge.py`、`runtime_verifier.py`、`verification_evidence.py` 及其历史测试和 Java 示例暂留目录中供兼容，不属于本轮维护范围，也不进入独立发布包；`spec_judge.py` 是早期原型。
 
 ## 1. 当前能力和保证范围
 
-当前有五个可运行 Suite，覆盖三个扩展层级：
+当前正式范围是五个 Suite，使用两个 Profile：
 
 - `NetworkInterface.followUser`：原始网络方法；
 - `NetworkInterface.containsBoth`：复用已有网络 Profile 的新方法；
@@ -14,13 +14,15 @@
 - `NetworkInterface.unfollowUser`：独立方法目录中的取消关注练习；
 - `CounterInterface.checkNonNegative`：独立标量 Profile 和无参数方法。
 
+本次上机候选版本的正式支持范围固定为上述五个 Suite 和两个 Profile：`network_v1`、`counter_v1`。当前任务没有增加 JML 语法或领域能力；量词、`\result` 及完整 OpenJML 语义仍不支持。后文的 Profile/新方法开发说明用于未来维护，不代表这次发布包已经支持任意新题型。
+
 其中 `followUser` 使用：
 
 - 参考合同：`suites/NetworkInterface/followUser/reference.java`；
 - 领域 Profile：`profiles/network_v1/profile.py`；
 - 方法配置：`suites/NetworkInterface/followUser/suite.yaml`；
 - 测试点：`suites/NetworkInterface/followUser/points.yaml`；
-- 9 个前态和 5 个前后态对（含 4 个生成变体）；
+- 覆盖缺失用户、自关注、重复关注和反向关系等前态，以及正确和常见错误候选后态；
 - 支持布尔逻辑、整数比较、`\old`、`containsUser`、`getUser`、`isFollowing` 和 `containsFollower`。
 
 默认评分结论只表示参考和学生合同在 suite 声明的有限测试域上一致，不表示任意状态上的完整逻辑等价。当前可对声明的参数域和状态列表做确定性笛卡尔展开，并已按行为归一化 `requires`、`ensures` 和 `signals`。可选 SMT 后端能检查当前 AST 子集的逻辑差异；`network_v1` 已配置部分领域不变量公理，但并非完整的领域或 JML 语义，量词、集合运算和完整 JML frame 语法仍未支持。后续路线见本目录 [TODO.md](TODO.md)。
@@ -90,13 +92,15 @@ cat tests/fixtures/followUser/wrong-relation-direction.java | \
   --json
 ```
 
-`SUBMISSION` 是 UTF-8 `.java` 或 `.jml` 文件路径；传 `-` 时从标准输入读取。无论扩展名如何，提交文本都必须包含 suite 所指定的方法声明，并在该声明紧邻位置提供 `/*@ ... @*/` JML 块。单独只有 JML 子句的 sidecar 不符合本 CLI 输入约定；`.jml` 后缀也不会触发 OpenJML sidecar 解析。命令形状为 `semantic_check.py SUBMISSION --suite SUITE --json`。suite 锁定方法、Profile、参考合同和测试点。参考 JML 与隐藏测试点只存放于评测端发布包，不随学生提交传递。
+`SUBMISSION` 是 UTF-8 `.java` 或 `.jml` 文件路径；传 `-` 时从标准输入读取。无论扩展名如何，提交文本都必须包含 Suite 指定的唯一目标方法声明，以及归属于此方法的唯一、完整 `/*@ ... @*/` JML 合同块。合同块与声明之间可以有普通注释；块内普通注释不保证支持。方法名及参数名称、Java 类型须匹配 Suite；返回类型、是否 `static` 和 `throws` 集合须匹配参考声明。`safe`／`pure` 声明标记允许存在；重复/重载目标方法、多个相邻合同块、未完成行为和未知条款（如 `signals_only`、`invariant`、`model`）均视为规格错误，不会被忽略。单独只有 JML 子句的 sidecar 不符合本 CLI 输入约定；`.jml` 后缀也不会触发 OpenJML sidecar 解析。源码识别只覆盖本组件所需的受限格式，不是完整 Java 解析器。命令形状为 `semantic_check.py SUBMISSION --suite SUITE --json`。suite 锁定方法、Profile、参考合同和测试点。参考 JML 与隐藏测试点只存放于评测端发布包，不随学生提交传递。
+
+本版对学生源码设置资源上限：提交不超过 1 MiB；单条表达式不超过 4096 个 token；表达式语法嵌套不超过 32 层；表达式 AST 深度不超过 128；整数文字最多 4096 位。学生提交触发上限时返回 `FAIL` JSON、退出码 `1`；评测端参考源触发上限或解析异常时返回 `ERROR`、退出码 `2`，不生成学生分数。
 
 正常评测以 JSON 写入标准输出。结果带有 `schema_version`、`status`，以及兼容的 `score`、`passed`、`diagnostics` 字段；`coverage`、`evaluation` 和 `solver` 依评测阶段可能缺省，例如学生格式或编码错误时不会有完整覆盖率和求解器信息。提交文件 IO、参数或 suite 配置错误返回退出码 `2`，JSON 使用 `status: "ERROR"` 且不含 `score`、`passed`；错误细节写入标准错误。退出码 `0` 表示 `PASS`，`1` 表示 `FAIL`。集成端应按 `status` 和退出码分开处理配置错误，不能把 `ERROR` 计为学生零分。
 
 ## 3. 评测过程
 
-1. 从评测端参考源和学生 `.java`／`.jml` 提交中找到目标方法声明及其紧邻的 JML 块。
+1. 从评测端参考源和学生 `.java`／`.jml` 提交中找到目标方法声明及归属于它的 JML 块。
 2. 解析 `requires`、`ensures`、`signals` 和 `assignable`。
 3. suite 选择 Profile 和测试点。
 4. Profile 将 JML 方法调用解释为抽象状态查询。
@@ -132,7 +136,12 @@ cat tests/fixtures/followUser/wrong-relation-direction.java | \
       "slots": ["FORWARD_POSTCONDITION", "INVERSE_POSTCONDITION"]
     }
   },
-  "quality": {"min_mutation_score": 100},
+  "quality": {
+    "min_mutation_score": 100,
+    "equivalent_mutations": {
+      "delete_conjunct.8": "21d5230797faedcfdc105b00aba95ac2a1af344401dc2f70a48e97d5d69dbfe7"
+    }
+  },
   "solver": {"mode": "audit", "timeout_ms": 1000},
   "reference": "reference.java",
   "points": "points.yaml"
@@ -145,7 +154,7 @@ cat tests/fixtures/followUser/wrong-relation-direction.java | \
 
 `contract_shape` 可以使用整数表示精确数量，也可以使用 `{"min": 1}`、`{"max": 3}` 或同时提供上下界。通用合同解析器本身不限制子句数量。
 
-`grading` 的四个键分别控制正常适用性、正常后置条件、异常结果和锁定 frame/输出的总分占比。`diagnostics` 可选，用来给某个方法覆盖通用的 `location`、`category`、`observation`、`guidance`，也可用 `slots` 给固定数量的子句设置教学空位标签。它只影响反馈，不定义正确答案。`quality.min_mutation_score` 可设为 `0` 到 `100`，让预检在点集不能识别足够多典型 JML 变异时失败。
+`grading` 的四个键分别控制正常适用性、正常后置条件、异常结果和锁定 frame/输出的总分占比。`diagnostics` 可选，用来给某个方法覆盖通用的 `location`、`category`、`observation`、`guidance`，也可用 `slots` 给固定数量的子句设置教学空位标签。它只影响反馈，不定义正确答案。`quality.min_mutation_score` 可设为 `0` 到 `100`，让预检在点集不能识别足够多典型 JML 变异时失败。`equivalent_mutations` 是“变异 ID → 经人工审核的精确变异源码 UTF-8 SHA-256”映射，只能豁免已经核实在当前抽象域内等价的确切源码；源码哈希变化、变异 ID 不存在，或新增测试点杀死了已豁免变异，都会使预检报错，要求重新审核。预检保留原始 `mutations.total`、`killed`、`score`、`survivors`，并增加 `reviewed_equivalent`、`unexpected_survivors` 和 `effective_score`；`min_mutation_score` 检查剔除审核等价变异后的有效分数。审核变异是解释真实等价性的维护记录，不应用来放宽状态域或追求表面分数。
 
 `solver.mode` 有三种取值：
 
@@ -248,9 +257,11 @@ PYTHONDONTWRITEBYTECODE=1 python3 validate_suite.py \
 python3 run_tests.py
 ```
 
-`validate_suite.py` 会加载 Profile、检查路径和 schema、解析参考 JML，并让参考合同在全部测试点上进行自比较。它报告 `generated_post` 中正常适用、被参考接受及拒绝的生成后态数量；还会逐个运行逻辑连接/比较翻转、删除否定或 `\old`、简单参数交换、布尔翻转和 frame 放宽等确定性变异，输出 `mutations.total/killed/score/survivors`。存活变异意味着当前点集无法区分该类改错，应补点或人工确认它在限定域内确实等价。变异得分只衡量这些典型错误，不是完整正确性的证明。
+`validate_suite.py` 会加载 Profile、检查路径和 schema、解析参考 JML，并让参考合同在全部测试点上进行自比较。它报告 `generated_post` 中正常适用、被参考接受及拒绝的生成后态数量；还会逐个运行逻辑连接/比较翻转、删除否定或 `\old`、简单参数交换、布尔翻转和 frame 放宽等确定性变异。输出保留原始 `mutations.total/killed/score/survivors`，并提供审核等价变异、未预期存活项及 `effective_score`。存活变异意味着当前点集无法区分该类改错，应补点或人工确认它在限定域内确实等价。变异得分只衡量这些典型错误，不是完整正确性的证明。
 
-例如 `unfollowUser` 当前报告 `killed: 6`、`total: 7`、`score: 86`，这是变异识别率，**不是学生成绩**。唯一存活的 `delete_conjunct.2` 把“两个用户存在且 id1 关注 id2”简化为“id1 关注 id2”；在 `network_v1` 的合法状态中，关注边的两端必须存在，因此两种写法在当前抽象模型内等价，不能靠增加合法测试点区分。遇到存活变异时要先检查是否属于这种等价变异，再决定补点；不要为追求 100% 强行加入不合法的状态。该 Suite 的 `validate_suite.py` 结果仍是 `valid: true`。
+当前 `followUser` 有 12 个手写前态点、13 个后态点（其中 12 个由变异生成器产生）。这些点覆盖 `id1 == 0`、`id1/id2` 使用 3/4 等新 ID、对调参数，以及正确更新、遗漏一侧更新和反向关系等候选后态；曾经可漏过的额外前置条件 `id1 == 1` 现在会被拒绝。它的原始变异数为 `25/26`（96%），人工审核等价项为 `delete_conjunct.8`，有效分数为 100，未预期存活项为空。
+
+当前 `unfollowUser` 的原始变异数为 `6/7`（86%），人工审核等价项为 `delete_conjunct.2`，有效分数为 100，未预期存活项为空。该变异把“两个用户存在且 id1 关注 id2”简化为“id1 关注 id2”；在 `network_v1` 的合法状态中，关注边的两端必须存在，因此两种写法在当前抽象模型内等价，不能靠增加合法测试点区分。等价项仅按 suite 中记录的完整变异源码哈希豁免；如果后来新增点把它杀死，预检会报错并要求复核。变异得分**不是学生成绩**，不得为凑分放宽题目定义的状态域或加入非法状态。
 
 ### 5.4 批量展开有限测试域
 
@@ -346,19 +357,18 @@ group_members: relation[GroupId, UserId]
 
 ## 7. 添加新方法
 
-当前迁移阶段按以下步骤添加：
+后续新增方法时，为它建立统一的目录结构 `suites/<Class>/<method>/`，目录中放 `reference.java`、`suite.yaml` 和 `points.yaml` 三个文件：
 
-1. 准备包含完整 JML 的参考 Java 文件。
-2. 新建 `suites/<Interface>/<method>.yaml`。
-3. 新建 `<method>-points.yaml`，加入前态和前后态。
-4. 若方法使用已有 JML 调用，复用 `network_v1`；否则先扩展 Profile。
-5. 在 suite 中配置 `parameters`、`contract_shape`、`grading` 和可选 `diagnostics`。
-6. 运行 `validate_suite.py`，确认参考合同、状态和全部参数组合可求值。
-7. 增加正确、过强、过弱和非法符号样例测试。
+1. 准备经题意审核、含唯一目标方法和完整 JML 的参考 Java 源。
+2. 创建 `suites/<Class>/<method>/reference.java`、`suite.yaml` 与 `points.yaml`；在 suite 中以相对路径引用前两类材料。
+3. 若方法使用已有 JML 查询，选择兼容的 Profile；否则先实现并注册 Profile。
+4. 在 suite 中配置与方法签名匹配的 `parameters`、合同形状 `contract_shape`、`grading` 和可选 `diagnostics`。
+5. 运行 `validate_suite.py`，确认参考合同、状态和全部参数组合可求值。
+6. 增加正确、过强、过弱、签名错误、未知条款和非法符号样例测试。
 
 新增方法不需要修改 `core/judge.py` 或 `semantic_judge.py`。只有 JML 使用了 Profile 尚不认识的状态/查询，才需要扩展 Profile。
 
-通用解析器已经接受不同子句数量、方法名和多个 `also` 行为，具体范围由 suite 的 `contract_shape` 校验。通过判定会组合适用的正常行为，并按测试点比较整体异常匹配集合；等价的 `ensures` 调序或合并可以通过。`assignable` 在当前支持的 store-ref 子集中按适用行为比较，列表空白和顺序不影响结果；自定义 `(* output-> ... *)` 指令仍作为锁定文本处理。
+评测器只检查与参考声明相符的唯一目标方法；方法名和参数名称/Java 类型须匹配 Suite，返回类型、`static` 状态和 `throws` 集合须匹配参考声明。合同必须是归属于该方法的唯一完整 `/*@ ... @*/` 块；合同和方法声明之间可以夹普通注释，块内普通注释不保证支持。`safe`／`pure` 声明标记可保留。重复或重载目标方法、多个合同块、未完成行为和未知条款都会报错。现有合同处理支持 `requires`、`ensures`、`signals`、`assignable` 和当前实现的行为结构；通过判定会按测试点比较整体语义，`assignable` 只覆盖受支持的 store-ref 子集。
 
 ## 8. 添加新类
 
@@ -430,4 +440,4 @@ python3 run_tests.py
 python3 build_release.py --output "$release_dir/jml-judge.zip"
 ```
 
-发布器拒绝覆盖已有文件；每次用新的输出路径。上例把归档放入新建的临时目录，命令输出 JSON 中的 `output` 字段可用于记录实际路径。ZIP 内以 `spec_judge/` 为根目录，包含正式 CLI、Profile、Suite、参考 JML 和测试点。将它解压到评测机后，在 `spec_judge/` 目录运行 `python3 semantic_check.py SUBMISSION --suite SUITE --json`；若启用 `solver.mode: required`，还需为评测环境安装 `requirements-smt.txt`。发布和评测机接入细节见 [USAGE.md](USAGE.md) 第 9 节及同目录 `INTEGRATION.md`。
+发布器拒绝覆盖已有文件；每次用新的输出路径。上例把归档放入新建的临时目录，命令输出 JSON 中的 `output` 字段可用于记录实际路径。ZIP 内以 `spec_judge/` 为根目录，包含正式 CLI、Profile、Suite、参考 JML 和测试点。将它解压到评测机后，在 `spec_judge/` 目录运行 `python3 semantic_check.py SUBMISSION --suite SUITE --json`；若启用 `solver.mode: required`，还需为评测环境安装 `requirements-smt.txt`。发布和评测机接入细节见 [USAGE.md](USAGE.md) 第 9 节、[INTEGRATION.md](INTEGRATION.md) 和 [ON_MACHINE.md](ON_MACHINE.md)。

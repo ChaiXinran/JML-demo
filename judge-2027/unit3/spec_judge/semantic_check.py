@@ -17,6 +17,13 @@ from semantic_judge import (
 )
 
 
+MAX_SUBMISSION_BYTES = 1024 * 1024
+
+
+class SubmissionTooLargeError(Exception):
+    pass
+
+
 def error_payload(code: str, observation: str) -> dict:
     """Keep operator details out of the machine result forwarded to students."""
     return {
@@ -47,8 +54,21 @@ class JudgeArgumentParser(argparse.ArgumentParser):
 
 
 def read_submission(source: str) -> str:
-    data = sys.stdin.buffer.read() if source == "-" else Path(source).read_bytes()
+    if source == "-":
+        data = sys.stdin.buffer.read(MAX_SUBMISSION_BYTES + 1)
+    else:
+        with Path(source).open("rb") as stream:
+            data = stream.read(MAX_SUBMISSION_BYTES + 1)
+    if len(data) > MAX_SUBMISSION_BYTES:
+        raise SubmissionTooLargeError
     return data.decode("utf-8-sig")
+
+
+def submission_format_failure(observation: str, guidance: str) -> SemanticResult:
+    return SemanticResult(0, False, (Diagnostic(
+        SemanticDiagnosticCode.JML_FORMAT_OR_SYMBOL.value,
+        "SUBMISSION", "JML 源码格式", observation, guidance,
+    ),))
 
 
 def main() -> int:
@@ -83,10 +103,14 @@ def main() -> int:
             profile = DEFAULT_PROFILE
         # Read the trusted reference separately: invalid server assets must
         # never be turned into a student syntax failure or a score of zero.
-        reference_source = reference.read_text(encoding="utf-8-sig")
+        with reference.open("rb") as stream:
+            reference_data = stream.read(MAX_SUBMISSION_BYTES + 1)
+        if len(reference_data) > MAX_SUBMISSION_BYTES:
+            raise ProfileError("参考合同超过 1 MiB 上限")
+        reference_source = reference_data.decode("utf-8-sig")
         parse_contract(reference_source, method, profile)
-    except (OSError, UnicodeError, SpecError, ProfileError) as error:
-        print(f"规格评测配置错误：{error}", file=sys.stderr)
+    except (OSError, UnicodeError, SpecError, ProfileError, RecursionError, MemoryError) as error:
+        print(f"服务器端 Suite、参考合同或资源不可用：{error}", file=sys.stderr)
         if args.json:
             print(json.dumps(error_payload(
                 "JUDGE_CONFIGURATION", "服务器端 Suite、Profile 或参考合同不可用。",
@@ -102,19 +126,37 @@ def main() -> int:
             ), ensure_ascii=False))
         return 2
     except UnicodeError:
-        result = SemanticResult(0, False, (Diagnostic(
-            SemanticDiagnosticCode.JML_FORMAT_OR_SYMBOL.value,
-            "SUBMISSION", "JML 源码编码", "提交材料不是有效的 UTF-8 文本。",
+        result = submission_format_failure(
+            "提交材料不是有效的 UTF-8 文本。",
             "请将 JML 源码保存为 UTF-8 后重新提交。",
-        ),))
+        )
+    except SubmissionTooLargeError:
+        result = submission_format_failure(
+            f"提交材料超过 {MAX_SUBMISSION_BYTES} 字节上限。",
+            "请删除无关内容后重新提交，单次提交最多为 1 MiB。",
+        )
+    except MemoryError:
+        print("评测机读取提交时内存不足", file=sys.stderr)
+        if args.json:
+            print(json.dumps(error_payload(
+                "JUDGE_RESOURCE_ERROR", "评测机资源不足，本次评测未完成。",
+            ), ensure_ascii=False))
+        return 2
     else:
         try:
             result = evaluate_sources(reference_source, student_source, method, profile)
         except (SpecError, ProfileError) as error:
-            print(f"规格评测配置错误：{error}", file=sys.stderr)
+            print(f"服务器端评测配置不可用：{error}", file=sys.stderr)
             if args.json:
                 print(json.dumps(error_payload(
                     "JUDGE_CONFIGURATION", "服务器端参考合同或评测语义配置无效。",
+                ), ensure_ascii=False))
+            return 2
+        except (RecursionError, MemoryError):
+            print("评测器内部资源或递归限制异常", file=sys.stderr)
+            if args.json:
+                print(json.dumps(error_payload(
+                    "JUDGE_RESOURCE_ERROR", "评测机资源异常，本次评测未完成。",
                 ), ensure_ascii=False))
             return 2
     if args.json:

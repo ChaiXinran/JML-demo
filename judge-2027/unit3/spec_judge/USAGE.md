@@ -6,12 +6,12 @@
 
 一次评测由四样东西组成：
 
-| 名称 | 作用 | `followUser` 对应文件 |
-| --- | --- | --- |
-| 参考源 | 方法声明前写着经审核的参考 JML；它是判定依据 | `suites/NetworkInterface/followUser/reference.java` |
-| Suite | 指定方法、Profile、参考文件、测试点文件和评分设置 | `suites/NetworkInterface/followUser/suite.yaml` |
-| Points | 列出输入参数、调用前状态、候选调用后状态；**不写标准答案** | `suites/NetworkInterface/followUser/points.yaml` |
-| Profile | 解释状态字段及 JML 中的方法调用，例如 `containsUser(1)` 的含义 | `profiles/network_v1/profile.py` |
+| 名称    | 作用                                                             | `followUser` 对应文件                               |
+| ------- | ---------------------------------------------------------------- | ----------------------------------------------------- |
+| 参考源  | 方法声明前写着经审核的参考 JML；它是判定依据                     | `suites/NetworkInterface/followUser/reference.java` |
+| Suite   | 指定方法、Profile、参考文件、测试点文件和评分设置                | `suites/NetworkInterface/followUser/suite.yaml`     |
+| Points  | 列出输入参数、调用前状态、候选调用后状态；**不写标准答案** | `suites/NetworkInterface/followUser/points.yaml`    |
+| Profile | 解释状态字段及 JML 中的方法调用，例如 `containsUser(1)` 的含义 | `profiles/network_v1/profile.py`                    |
 
 下文所有相对路径，除非特别说明，均以 `judge-2027/unit3/spec_judge/` 为当前目录。Suite 里的 `reference` 和 `points` 路径则**相对于 Suite 文件所在目录**，不是相对于运行命令的目录。`followUser` 的权威参考源已收在其方法目录中，正式 suite 不依赖 `Agent/`。
 
@@ -24,6 +24,8 @@
 3. **新方法或新类，状态是一个整数，JML 只查询 `getValue()`**：可继续用 `counter_v1`，见第 7 节。
 4. **全新领域状态或新的 JML 查询**：除了上述文件，还必须实现或扩展 Profile，见第 8 节。仅写 JSON 格式的测试点无法让评测器理解未知的查询方法。
 
+本次上机候选版本的正式评测范围限定为仓库中已有的五个 Suite 和 `network_v1`、`counter_v1` 两个 Profile。第 6～8 节保留详细维护示例；新方法／新 Profile 属于后续开发，不在本次包的已支持范围。当前也不扩展量词、`\result` 或完整 JML 语义。
+
 ### 0.1 CLI 提交格式
 
 正式入口形状为：
@@ -32,9 +34,11 @@
 python3 semantic_check.py SUBMISSION --suite SUITE --json
 ```
 
-`SUBMISSION` 可以是 UTF-8 `.java` 或 `.jml` 文件，也可以写 `-` 从标准输入读取。文件内容必须包含 Suite 所指定的方法声明，以及紧邻该声明的 `/*@ ... @*/` JML 块。只有 JML 子句而没有方法声明的 sidecar 不符合输入约定；`.jml` 扩展名也不表示支持完整 OpenJML sidecar 语法。评测器只解释 JML 子集，不编译或运行 Java。
+`SUBMISSION` 可以是 UTF-8 `.java` 或 `.jml` 文件，也可以写 `-` 从标准输入读取。文件内容必须包含唯一的 Suite 目标方法声明，以及归属于该声明的唯一、完整 `/*@ ... @*/` JML 合同块。合同块与方法声明之间允许夹普通注释；合同块内部的普通注释不保证支持。参数名称和 Java 类型必须匹配 Suite；返回类型、是否 `static` 和 `throws` 集合必须匹配参考方法声明。`safe`／`pure` 声明标记可以保留。重复/重载目标方法、多个相邻合同块、未完成行为或未知条款（例如 `signals_only`、`invariant`、`model`）都会报学生规格错误，不会被忽略。只有 JML 子句而没有方法声明的 sidecar 不符合输入约定；`.jml` 扩展名也不表示支持完整 OpenJML sidecar 语法。源码识别只覆盖本组件需要的受限格式，不是完整 Java 解析器；评测器不编译或运行 Java。
 
 正常 JSON 结果带 `schema_version: 1`、`status: "PASS"` 或 `"FAIL"`，以及兼容的 `score`、`passed`、`diagnostics` 字段。`coverage`、`evaluation` 和 `solver` 可能缺省；例如学生格式或编码错误会产生分数和诊断，但没有完整覆盖统计或求解器结果。退出码 `0` 表示 PASS，`1` 表示 FAIL。提交文件 IO、参数或 Suite 配置错误退出码为 `2`，JSON 使用 `status: "ERROR"` 且不包含 `score`、`passed`；详细错误写入标准错误。评测机应把 ERROR 视作评测配置/输入错误，不能当作学生零分。
+
+资源上限为：学生源码不超过 1 MiB；每条表达式最多 4096 个 token；语法嵌套最多 32 层；表达式 AST 深度最多 128；整数文字最多 4096 位。学生提交超限属于 `FAIL`（JSON、退出码 `1`）；参考源超限或解析失败属于评测端 `ERROR`（JSON、退出码 `2`，不含学生分数）。
 
 ## 1. 准备环境，并跑通原有例子
 
@@ -62,7 +66,7 @@ PYTHONDONTWRITEBYTECODE=1 python3 validate_suite.py suites/NetworkInterface/foll
 应看到 `"valid": true`、`"profile": "network_v1"`、`"method": "followUser"`，以及前态数、后态数和变异测试结果。再用参考文件充当“学生提交”，确认评测入口可用：
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 python3 semantic_check.py \
+PYTHONDONTWRITEBYTECODE=1 python3 _semantic_check.py \
   suites/NetworkInterface/followUser/reference.java \
   --suite suites/NetworkInterface/followUser/suite.yaml --json
 ```
@@ -192,9 +196,17 @@ PYTHONDONTWRITEBYTECODE=1 python3 validate_suite.py suites/NetworkInterface/foll
 
 ### 5.3 使用 Profile 已实现的后态变体
 
-`network_v1` 已有 `follow_pair` 规则；现有 `followUser/points.yaml` 正在使用它。规则根据给定前态和参数构造 `correct`、`omit_inverse`、`omit_forward`、`reverse_direction` 等候选后态。如果要增加一批不同参数或不同前态的相同错误模式，可照现有 `"mode": "mutations"` 生成器新增一组，但新的 `id` 必须唯一，且前态必须满足“两个不同、已存在、尚无目标方向关注关系”的规则前提。否则 `validate_suite.py` 会报告规则无法应用。`counter_v1` 对应的现成规则是 `neighbor_values`。
+`network_v1` 已有 `follow_pair` 规则；现有 `followUser/points.yaml` 正在使用它。规则根据给定前态和参数构造 `correct`、`omit_inverse`、`omit_forward`、`reverse_direction` 等候选后态。如果要增加一批不同参数或不同前态的相同错误模式，可照现有 `"mode": "mutations"` 生成器新增一组，但新的 `id` 必须唯一，且前态必须满足“两个不同、已存在、尚无目标方向关注关系”的规则前提。否则 `validate_suite.py` 会报告规则无法应用。当前 `followUser` 有 12 个手写前态点和 13 个后态点（其中 12 个由生成器产生），覆盖 `id1 == 0`、3/4 等新 ID、调换参数顺序、正确更新、遗漏更新和反向关系后态；因此额外加上 `id1 == 1` 的正常条件会被识别为过度限制。`counter_v1` 对应的现成规则是 `neighbor_values`。
 
 新点可以设置 `"weight": 2`（正数，默认 1）、`"public": false`（布尔值，默认 false）、`"tags": ["boundary"]`（字符串数组）。权重会影响评分；它们不定义预期答案。初次加点建议先保留默认权重，以免无意改变既有评分比例。
+
+### 5.4 检查变异质量并审核等价项
+
+`validate_suite.py` 报告原始 `mutations.total`、`killed`、`score`、`survivors`，也报告 `reviewed_equivalent`、`unexpected_survivors` 和 `effective_score`。原始值保留所有确定性变异的计数；`reviewed_equivalent` 列出经人工审核的变异，`unexpected_survivors` 是仍未被测试点杀死且未获审核豁免的项。`quality.min_mutation_score` 应按剔除审核等价项后的 `effective_score` 判断。
+
+若确认一个存活变异只因 Profile 已保证的领域不变量而等价，在 Suite 的 `quality.equivalent_mutations` 中填入“变异 ID → 该完整变异源码 UTF-8 字节的 SHA-256”。先检查变异源码的语义，再生成哈希并复核 ID；不要只凭 `survivors` 名称自动豁免。之后若变异源码哈希变化、配置中的 ID 不再产生，或新增测试点杀死了已豁免项，预检会报错，必须重新人工审核。不要通过放宽点集状态域、加入不合法状态或下调最低分来消掉质量错误。
+
+当前 `followUser` 的原始识别率为 `25/26`（96%），审核等价项是 `delete_conjunct.8`；`unfollowUser` 为 `6/7`（86%），审核等价项是 `delete_conjunct.2`。两者的 `effective_score` 都是 100，`unexpected_survivors` 均为空，且 `min_mutation_score` 仍为 100。审核记录精确源码哈希，源码变动后不能沿用旧豁免。
 
 ## 6. 新方法、已有网络领域：完整示例 `unfollowUser`
 
@@ -217,7 +229,7 @@ public interface NetworkInterface {
 }
 ```
 
-这里的参考 JML 是**示范规格**，实际课程使用前必须由你依据真实题意审核，不能因为它能通过自检就认定它正确。方法声明前必须有 `/*@ ... @*/` 块；方法名应与下一步 Suite 的 `method` 完全相同。这个评测器不运行方法体；参考文件只需提供可定位的方法声明和 JML。当前定位方式按方法名查找声明，不适合在同一文件放多个同名重载方法让它猜测目标。
+这里的参考 JML 是**示范规格**，实际课程使用前必须由你依据真实题意审核，不能因为它能通过自检就认定它正确。Suite 的 `method`、`parameters` 必须与该声明的方法名、参数名称和类型一致。返回类型、是否 `static` 和 `throws` 集合会与参考声明比较。参考源和提交都必须只有一个对应的目标声明，且目标方法前只放唯一完整的 `/*@ ... @*/` 块；合同与声明之间可以有普通注释，块内普通注释不保证支持。`safe`／`pure` 声明标记允许存在。多个相邻合同块、未完成行为、`signals_only`、`invariant`、`model` 等未知条款会被拒绝。源码识别不是完整 Java 解析器；评测器不运行方法体。
 
 ### 6.2 创建 Suite
 
@@ -243,7 +255,7 @@ public interface NetworkInterface {
 }
 ```
 
-`parameters` 的键名和类型要与 JML 使用的参数一致；无参数方法写 `{}`。`contract_shape` 限制学生提交的 `requires`、`ensures`、`signals` 数量：整数表示精确数量，也可用 `{"min": 1}` 等范围。`grading` 必须包含四个区域，值是非负整数，至少一个大于 0；上例总和为 100。`solver.mode: "off"` 不需要安装 Z3；确定测试点足够后可参考主 README 决定是否改成 `audit`。初建时可不写 `quality`；如果要强制测试点杀死一定比例的典型错误，再配置 `"quality": {"min_mutation_score": 80}`，并按验证结果补点。
+`parameters` 的键名和类型要与 JML 使用的参数一致；无参数方法写 `{}`。`contract_shape` 限制学生提交的 `requires`、`ensures`、`signals` 数量：整数表示精确数量，也可用 `{"min": 1}` 等范围。`grading` 必须包含四个区域，值是非负整数，至少一个大于 0；上例总和为 100。`solver.mode: "off"` 不需要安装 Z3；确定测试点足够后可参考主 README 决定是否改成 `audit`。初建时可不写 `quality`；若启用最低变异分数，应先按第 5.4 节人工审核任何等价变异，再配置 `min_mutation_score`。等价项必须绑定该变异的确切源码哈希，不能靠放宽点集或状态域凑分。
 
 ### 6.3 创建 Points
 
@@ -312,7 +324,7 @@ PYTHONDONTWRITEBYTECODE=1 python3 semantic_check.py \
 
 最后一条用参考文件自评，预期 `schema_version: 1`、`status: "PASS"`、`score: 100` 且 `passed: true`。然后在同一方法目录另存一个**故意错误**的学生源，例如 `wrong.java`：保留第二个 `ensures` 子句但把它的条件改成 `true`，再以同一个 Suite 运行 `semantic_check.py suites/NetworkInterface/unfollowUser/wrong.java --suite suites/NetworkInterface/unfollowUser/suite.yaml --json`。预期 `status: "FAIL"` 且至少一个相关区域失分；若错误样例仍得 100，说明测试点没有区分出这类错误，应补候选后态再验证。不要直接删除该子句：本示例的 `contract_shape` 要求恰好两条 `ensures`，删除会先触发结构问题，无法单独验证点集的区分能力。`validate_suite.py` 的 `mutations.survivors` 也会提示典型错误中哪些还没被测试点识别。
 
-当前这份 `unfollowUser` Suite 的预检可通过，但变异识别率是 `6/7 ≈ 86%`。唯一存活的 `delete_conjunct.2` 删除了前置条件中显式写出的“两个用户存在”，只保留“id1 关注 id2”。在 `network_v1` 中，合法的关注关系已经保证两端用户存在，所以这个变异在当前抽象模型内等价，并不表示必须再加一个测试点。变异识别率不是学生分数；碰到其他存活变异时也应先判断是否真的改变了语义，再决定是否补点。
+当前这份 `unfollowUser` Suite 的原始变异识别率是 `6/7 ≈ 86%`。唯一存活的 `delete_conjunct.2` 删除了前置条件中显式写出的“两个用户存在”，只保留“id1 关注 id2”。在 `network_v1` 中，合法的关注关系已经保证两端用户存在，所以这个变异在当前抽象模型内等价，并不表示必须再加一个测试点。Suite 以确切源码哈希审核了它；预检保留原始 6/7，同时报告 `reviewed_equivalent: ["delete_conjunct.2"]`、`unexpected_survivors: []` 和 `effective_score: 100`，`min_mutation_score` 仍是 100。以后修改变异或测试点时必须重新检查这个审核结论。变异识别率不是学生分数；不要加入不合法状态来提高表面分数。
 
 参考合同通过自评的退出码为 0，学生合同不一致为 1，Suite／参考文件／提交读取或参数错误为 2；退出码 2 返回 `status: "ERROR"`，不包含学生分数，**配置或输入错误不能当学生零分**。最后运行回归测试：
 
@@ -428,7 +440,7 @@ python3 semantic_check.py - \
   --json < submission.java
 ```
 
-提交也可以是含目标方法与紧邻 JML 块的 `.jml` 文件；文件扩展名不改变解析方式。CLI 将 JSON 结果写到标准输出，详细 IO／参数／Suite 配置错误写到标准错误。`status: "PASS"`、`"FAIL"`、`"ERROR"` 分别表示通过、不一致、无法执行评测。调用方应保留退出码：`0` 对应 PASS，`1` 对应 FAIL，`2` 对应 ERROR；ERROR 不应转换为学生分数。协议字段与集成注意事项见同目录 [INTEGRATION.md](INTEGRATION.md)。
+提交也可以是含目标方法声明及归属合同块的 `.jml` 文件；合同块与声明之间可夹普通注释，文件扩展名不改变解析方式。CLI 将 JSON 结果写到标准输出，详细 IO／参数／Suite 配置错误写到标准错误。`status: "PASS"`、`"FAIL"`、`"ERROR"` 分别表示通过、不一致、无法执行评测。调用方应保留退出码：`0` 对应 PASS，`1` 对应 FAIL，`2` 对应 ERROR；ERROR 不应转换为学生分数。协议字段与上机步骤见同目录 [INTEGRATION.md](INTEGRATION.md) 和 [ON_MACHINE.md](ON_MACHINE.md)。
 
 ### 9.5 更新测试集并重新发布
 
@@ -441,7 +453,7 @@ python3 semantic_check.py - \
 1. `json.tool` 失败：先检查双引号、逗号、花括号；文件虽然叫 `.yaml`，现在用的是 JSON 兼容语法。
 2. `reference 或 points 文件不存在`：路径相对于 Suite 文件目录，不是终端当前目录。
 3. `未知 profile`：检查 Suite 的 `profile` 名称以及 `profiles/registry.py`。
-4. `未找到方法`／`未找到紧邻方法的 JML 注释块`：参考源或学生 `.java`／`.jml` 中的方法名要与 Suite 一致，JML 须紧邻方法声明并写在 `/*@ ... @*/` 中。
+4. `未找到方法`／`未找到紧邻方法的 JML 注释块`：参考源或学生 `.java`／`.jml` 中的方法名要与 Suite 一致，JML 须用唯一完整的 `/*@ ... @*/` 块归属目标声明。合同块与声明之间可夹普通注释，块内普通注释不保证支持。
 5. `未定义的变量`／`不允许调用接口外函数`：检查 Suite 的 `parameters` 及 Profile 的 `allowed_calls`、`symbols`；不要在 JML 中使用尚未实现的查询。
 6. `参数必须恰好是 ...`：每个点的 `args` 键名必须与 Suite 的 `parameters` 一模一样，包括无参数时的 `{}`。
 7. `未知 fixture`／`fixture 出现循环引用`：检查 `use` 名称和引用链。

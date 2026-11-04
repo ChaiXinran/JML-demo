@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "status": "FAIL",
+  "score": 93,
+  "passed": false,
+  "diagnostics": [
+    {
+      "code": "EXCEPTION_PARTITION_MISMATCH",
+      "location": "SECOND_USER_MISSING",
+      "category": "异常分支与优先级",
+      "observation": "整体异常匹配集合与标准合同不一致。",
+      "guidance": "检查该分支是否覆盖了自己的情形，并正确排除了更早的异常情形。",
+      "lines": [
+        14
+      ]
+    }
+  ],
+  "coverage": {
+    "applicability": {
+      "passed_weight": 12,
+      "total_weight": 12
+    },
+    "postcondition": {
+      "passed_weight": 13,
+      "total_weight": 13
+    },
+    "exceptions": {
+      "passed_weight": 10,
+      "total_weight": 12
+    },
+    "locked": {
+      "passed_weight": 13,
+      "total_weight": 13
+    }
+  },
+  "evaluation": {
+    "profile": "network_v1",
+    "suite": "NetworkInterface.followUser",
+    "suite_version": 1,
+    "guarantee_scope": "fixed_test_points"
+  },
+  "solver": {
+    "applicability": {
+      "status": "UNAVAILABLE",
+      "reason": "未安装 z3-solver"
+    },
+    "postcondition": {
+      "status": "UNAVAILABLE",
+      "reason": "未安装 z3-solver"
+    },
+    "exceptions": {
+      "status": "UNAVAILABLE",
+      "reason": "未安装 z3-solver"
+    }
+  }
+}

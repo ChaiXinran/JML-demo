@@ -5,6 +5,12 @@
     "only_1": {"users": [1], "following": [], "followers": []},
     "only_2": {"users": [2], "following": [], "followers": []},
     "two_users": {"users": [1, 2], "following": [], "followers": []},
+    "zero_id_users": {"users": [0, 7], "following": [], "followers": []},
+    "renamed_users": {
+      "users": [3, 4, 5],
+      "following": [[5, 3]],
+      "followers": [[3, 5]]
+    },
     "steady": {
       "users": [1, 2, 3],
       "following": [[3, 1]],
@@ -31,6 +37,9 @@
       "pre": {"users": [1, 2], "following": [[1, 2]], "followers": [[2, 1]]}
     },
     {"id": "normal_minimal", "kind": "pre", "args": {"id1": 1, "id2": 2}, "pre": {"use": "two_users"}},
+    {"id": "normal_renamed_ids", "kind": "pre", "args": {"id1": 3, "id2": 4}, "pre": {"use": "renamed_users"}},
+    {"id": "normal_swapped_ids", "kind": "pre", "args": {"id1": 4, "id2": 3}, "pre": {"use": "renamed_users"}},
+    {"id": "normal_zero_id", "kind": "pre", "args": {"id1": 0, "id2": 7}, "pre": {"use": "zero_id_users"}},
     {
       "id": "reverse_after_success",
       "kind": "post",
@@ -49,6 +58,24 @@
       "kind": "post",
       "args": {"id1": [1], "id2": [2]},
       "pre": [{"use": "steady"}],
+      "rule": "follow_pair",
+      "variants": ["correct", "omit_inverse", "omit_forward", "reverse_direction"]
+    },
+    {
+      "id": "follow_renamed_outcomes",
+      "mode": "mutations",
+      "kind": "post",
+      "args": {"id1": [3], "id2": [4]},
+      "pre": [{"use": "renamed_users"}],
+      "rule": "follow_pair",
+      "variants": ["correct", "omit_inverse", "omit_forward", "reverse_direction"]
+    },
+    {
+      "id": "follow_zero_id_outcomes",
+      "mode": "mutations",
+      "kind": "post",
+      "args": {"id1": [0], "id2": [7]},
+      "pre": [{"use": "zero_id_users"}],
       "rule": "follow_pair",
       "variants": ["correct", "omit_inverse", "omit_forward", "reverse_direction"]
     }

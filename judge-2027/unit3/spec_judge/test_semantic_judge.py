@@ -109,8 +109,8 @@ class SemanticJudgeTests(unittest.TestCase):
     def test_declarative_suite_reproduces_follow_user_scenarios(self):
         suite = load_suite(SUITE, {DEFAULT_PROFILE.name: DEFAULT_PROFILE})
         self.assertEqual("followUser", suite.method)
-        self.assertEqual(9, len(suite.pre_points))
-        self.assertEqual(5, len(suite.post_points))
+        self.assertEqual(12, len(suite.pre_points))
+        self.assertEqual(13, len(suite.post_points))
         result = evaluate_sources(self.reference, self.reference, suite.method, suite.profile)
         self.assertTrue(result.passed)
 
@@ -118,7 +118,7 @@ class SemanticJudgeTests(unittest.TestCase):
         suite = load_suite(SUITE, PROFILES)
         repeated = load_suite(SUITE, PROFILES)
         self.assertEqual(suite.post_points, repeated.post_points)
-        generated = [point for point in suite.post_points if "generated-mutation" in point.tags]
+        generated = [point for point in suite.post_points if point.id.startswith("follow_outcomes.")]
         by_variant = {point.id.rsplit(".", 1)[-1]: point for point in generated}
         self.assertEqual(
             {"correct", "omit_forward", "omit_inverse", "reverse_direction"},
@@ -182,7 +182,7 @@ class SemanticJudgeTests(unittest.TestCase):
             result["evaluation"]["guarantee_scope"],
             {"fixed_test_points", "smt_supported_subset"},
         )
-        self.assertEqual(9.0, result["coverage"]["applicability"]["total_weight"])
+        self.assertEqual(12.0, result["coverage"]["applicability"]["total_weight"])
 
     def test_invalid_reference_is_a_configuration_error(self):
         invalid_reference = self.reference.replace("containsUser(id1)", "containsUser(true)", 1)
@@ -512,19 +512,46 @@ void anotherMethod();
                 self.assertGreater(report["post_points"], 0)
                 configured_quality = load_suite(path, PROFILES).quality
                 self.assertGreaterEqual(
-                    report["mutations"]["score"], configured_quality.get("min_mutation_score", 0),
+                    report["mutations"]["effective_score"], configured_quality.get("min_mutation_score", 0),
                 )
                 if path == UNFOLLOW_SUITE:
                     # The omitted redundant conjunct is equivalent on legal
                     # network states, so it is not counted as a missing point.
                     self.assertEqual(86, report["mutations"]["score"])
                     self.assertEqual(["delete_conjunct.2"], report["mutations"]["survivors"])
-                elif path in (SUITE, CONTAINS_BOTH_SUITE, CAN_INTERACT_SUITE, COUNTER_SUITE):
+                elif path == SUITE:
+                    self.assertEqual(96, report["mutations"]["score"])
+                    self.assertEqual(["delete_conjunct.8"], report["mutations"]["survivors"])
+                elif path in (CONTAINS_BOTH_SUITE, CAN_INTERACT_SUITE, COUNTER_SUITE):
                     self.assertEqual(100, report["mutations"]["score"])
                     self.assertEqual([], report["mutations"]["survivors"])
+                self.assertEqual(100, report["mutations"]["effective_score"])
+                self.assertEqual([], report["mutations"]["unexpected_survivors"])
                 if path in (SUITE, COUNTER_SUITE):
                     self.assertGreater(report["generated_post"]["accepted_by_reference"], 0)
                     self.assertGreater(report["generated_post"]["rejected_by_reference"], 0)
+
+    def test_reviewed_equivalent_mutation_requires_exact_source_hash(self):
+        config = json.loads(SUITE.read_text(encoding="utf-8"))
+        config["reference"] = str(REFERENCE)
+        config["points"] = str(SUITE.parent / "points.yaml")
+        config["quality"]["equivalent_mutations"]["delete_conjunct.8"] = "0" * 64
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "suite.yaml"
+            path.write_text(json.dumps(config), encoding="utf-8")
+            with self.assertRaisesRegex(ProfileError, "审核记录已过期"):
+                validate(path)
+
+    def test_unreviewed_survivor_still_fails_quality_gate(self):
+        config = json.loads(SUITE.read_text(encoding="utf-8"))
+        config["reference"] = str(REFERENCE)
+        config["points"] = str(SUITE.parent / "points.yaml")
+        config["quality"]["equivalent_mutations"] = {}
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "suite.yaml"
+            path.write_text(json.dumps(config), encoding="utf-8")
+            with self.assertRaisesRegex(ProfileError, "未解释的存活变异"):
+                validate(path)
 
 
 if __name__ == "__main__":

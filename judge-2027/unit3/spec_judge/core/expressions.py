@@ -10,6 +10,12 @@ from .errors import SpecError
 from .profile import EvaluationContext, EvaluationProfile, ProfileError
 
 
+MAX_EXPRESSION_TOKENS = 4096
+MAX_SYNTAX_NESTING = 32
+MAX_AST_DEPTH = 128
+MAX_INTEGER_LITERAL_DIGITS = 4096
+
+
 @dataclasses.dataclass(frozen=True)
 class Token:
     kind: str
@@ -24,7 +30,7 @@ TOKEN_RE = re.compile(
 )
 
 
-def tokenize(source: str) -> list[Token]:
+def tokenize(source: str, *, max_tokens: int = MAX_EXPRESSION_TOKENS) -> list[Token]:
     result: list[Token] = []
     position = 0
     while position < len(source):
@@ -37,9 +43,66 @@ def tokenize(source: str) -> list[Token]:
         text = match.group(kind)
         if kind == "BAD":
             raise SpecError(f"不支持的字符 {text!r}（位置 {match.start(kind)}）")
+        if len(result) >= max_tokens:
+            raise SpecError(f"表达式 token 数超过上限 {max_tokens}")
         result.append(Token(kind if kind not in {"OP", "PUNC", "JML"} else text, text, match.start(kind)))
     result.append(Token("EOF", "", len(source)))
     return result
+
+
+def _check_syntax_nesting(tokens: list[Token]) -> None:
+    """Bound recursive grammar nesting before the recursive-descent parser runs."""
+    parenthesis_depth = 0
+    unary_run = 0
+    for token in tokens:
+        if token.kind == "(":
+            parenthesis_depth += 1
+            if parenthesis_depth > MAX_SYNTAX_NESTING:
+                raise SpecError(f"表达式语法嵌套超过上限 {MAX_SYNTAX_NESTING}")
+        elif token.kind == ")":
+            parenthesis_depth = max(0, parenthesis_depth - 1)
+
+        if token.kind == "!":
+            unary_run += 1
+            if unary_run > MAX_SYNTAX_NESTING:
+                raise SpecError(f"连续一元否定超过上限 {MAX_SYNTAX_NESTING}")
+        else:
+            unary_run = 0
+
+
+def _expression_children(expression: Expr) -> tuple[Expr, ...]:
+    if isinstance(expression, Call):
+        return expression.args
+    if isinstance(expression, Unary):
+        return (expression.operand,)
+    if isinstance(expression, Binary):
+        return (expression.left, expression.right)
+    if isinstance(expression, Old):
+        return (expression.expression,)
+    return ()
+
+
+def _check_ast_depth(expression: Expr) -> None:
+    """Check AST depth iteratively so a hostile tree cannot overflow the checker."""
+    stack = [(expression, 1)]
+    while stack:
+        node, depth = stack.pop()
+        if depth > MAX_AST_DEPTH:
+            raise SpecError(f"表达式 AST 深度超过上限 {MAX_AST_DEPTH}")
+        stack.extend((child, depth + 1) for child in _expression_children(node))
+
+
+def _balanced_binary(operator: str, expressions: list[Expr]) -> Expr:
+    """Build an order-preserving balanced tree for associative boolean chains."""
+    while len(expressions) > 1:
+        combined: list[Expr] = []
+        for index in range(0, len(expressions), 2):
+            if index + 1 == len(expressions):
+                combined.append(expressions[index])
+            else:
+                combined.append(Binary(operator, expressions[index], expressions[index + 1]))
+        expressions = combined
+    return expressions[0]
 
 
 class Expr:
@@ -83,6 +146,7 @@ class Old(Expr):
 class ExpressionParser:
     def __init__(self, source: str):
         self.tokens = tokenize(source)
+        _check_syntax_nesting(self.tokens)
         self.index = 0
 
     def current(self) -> Token:
@@ -105,19 +169,20 @@ class ExpressionParser:
     def parse(self) -> Expr:
         expression = self.parse_or()
         self.expect("EOF")
+        _check_ast_depth(expression)
         return expression
 
     def parse_or(self) -> Expr:
-        expression = self.parse_and()
+        expressions = [self.parse_and()]
         while self.accept("||"):
-            expression = Binary("||", expression, self.parse_and())
-        return expression
+            expressions.append(self.parse_and())
+        return _balanced_binary("||", expressions)
 
     def parse_and(self) -> Expr:
-        expression = self.parse_equality()
+        expressions = [self.parse_equality()]
         while self.accept("&&"):
-            expression = Binary("&&", expression, self.parse_equality())
-        return expression
+            expressions.append(self.parse_equality())
+        return _balanced_binary("&&", expressions)
 
     def parse_equality(self) -> Expr:
         expression = self.parse_relational()
@@ -136,18 +201,32 @@ class ExpressionParser:
         return expression
 
     def parse_unary(self) -> Expr:
-        if self.accept("!"):
-            return Unary("!", self.parse_unary())
+        negations = 0
+        while self.accept("!"):
+            negations += 1
         if self.accept("\\old"):
             self.expect("(")
             expression = self.parse_or()
             self.expect(")")
-            return Old(expression)
-        return self.parse_primary()
+            expression = Old(expression)
+        else:
+            expression = self.parse_primary()
+        for _ in range(negations):
+            expression = Unary("!", expression)
+        return expression
 
     def parse_primary(self) -> Expr:
         if self.accept("INT"):
-            return Literal(int(self.tokens[self.index - 1].text))
+            literal = self.tokens[self.index - 1].text
+            if len(literal) > MAX_INTEGER_LITERAL_DIGITS:
+                raise SpecError(
+                    f"整数字面量长度超过上限 {MAX_INTEGER_LITERAL_DIGITS} 位"
+                )
+            try:
+                value = int(literal)
+            except ValueError as error:
+                raise SpecError("整数字面量无效或超出解释器转换限制") from error
+            return Literal(value)
         if self.accept("("):
             expression = self.parse_or()
             self.expect(")")

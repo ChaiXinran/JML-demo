@@ -11,6 +11,12 @@
     "exceptions": 0,
     "locked": 10
   },
+  "quality": {
+    "min_mutation_score": 100,
+    "equivalent_mutations": {
+      "delete_conjunct.2": "a75e00e90750ce5e5b927a2d12f4b2119a78c746cdb4ebf3619dec100f68b245"
+    }
+  },
   "solver": {"mode": "off"},
   "reference": "reference.java",
   "points": "points.yaml"
