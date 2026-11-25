@@ -7,7 +7,10 @@ import re
 
 from .contracts import extract_jml_block
 from .errors import SpecError
-from .expressions import Binary, Call, Expr, ExpressionParser, Literal, Old, Unary, Variable
+from .expressions import (
+    ArrayAccess, ArrayLength, Binary, Call, Expr, ExpressionParser, Literal,
+    NullLiteral, Old, Quantifier, Unary, Variable,
+)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -36,14 +39,25 @@ def _render(expression: Expr) -> str:
         return str(expression.value)
     if isinstance(expression, Variable):
         return expression.name
+    if isinstance(expression, NullLiteral):
+        return "null"
     if isinstance(expression, Call):
         return f"{expression.name}({', '.join(_render(item) for item in expression.args)})"
     if isinstance(expression, Unary):
-        return f"!({_render(expression.operand)})"
+        return f"{expression.operator}({_render(expression.operand)})"
     if isinstance(expression, Old):
         return f"\\old({_render(expression.expression)})"
     if isinstance(expression, Binary):
         return f"({_render(expression.left)} {expression.operator} {_render(expression.right)})"
+    if isinstance(expression, ArrayLength):
+        return f"({_render(expression.array)}).length"
+    if isinstance(expression, ArrayAccess):
+        return f"({_render(expression.array)})[{_render(expression.index)}]"
+    if isinstance(expression, Quantifier):
+        return (
+            f"(\\{expression.kind} int {', '.join(expression.bindings)}; "
+            f"{_render(expression.range_expression)}; {_render(expression.predicate)})"
+        )
     raise TypeError(type(expression).__name__)
 
 
@@ -123,17 +137,27 @@ def generate_contract_mutations(java_source: str, method_name: str) -> tuple[Con
     ))
     comparison_flips = {
         "==": "!=", "!=": "==", "<=": ">", ">=": "<", "<": ">=", ">": "<=",
+        "<==>": "==>", "==>": "&&",
     }
     mutations.extend(_single_replacements(
         java_source,
         block_start,
         block,
-        r"==|!=|<=|>=|(?<![<>=])<(?![=])|(?<![<>=])>(?![=])",
+        r"<==>|==>|==|!=|<=|>=|(?<![<>=])<(?![=])|(?<![<>=])>(?![=])",
         lambda match: comparison_flips[match.group()],
         "flip_comparison",
     ))
     mutations.extend(_single_replacements(
         java_source, block_start, block, r"!(?!=)", "", "remove_not"
+    ))
+    mutations.extend(_single_replacements(
+        java_source, block_start, block, r"\\(?:forall|exists)\b",
+        lambda match: r"\exists" if match.group() == r"\forall" else r"\forall",
+        "swap_quantifier",
+    ))
+    mutations.extend(_single_replacements(
+        java_source, block_start, block, r"\bsignals_only\s+[^;]+",
+        r"signals_only \nothing", "remove_exception_type",
     ))
     mutations.extend(_single_replacements(
         java_source,

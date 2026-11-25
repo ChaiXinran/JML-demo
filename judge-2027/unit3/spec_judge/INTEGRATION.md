@@ -2,7 +2,7 @@
 
 本组件评测参考 JML 与学生 JML 在 Suite 声明范围内的一致性。课程的学生练习 Web 独立分发；评测机可直接调用这里的 CLI，无需启动 Web、安装 Java、配置 OpenJML 或模型 API。
 
-本次上机候选版本正式支持五个现有 Suite 和两个 Profile（`network_v1`、`counter_v1`）。当前不增加 JML 语法或任意领域支持；有限测试点结果不能解释为完整 JML 或无限状态空间的证明。
+当前提供八个 Suite，包括三个新版指导书的独立题。评测机按 HW9、HW10、HW11 选择 `suites/JML/` 下的 `firstDuplicateIndex`、`reserveSeats`、`longestFreeBlock`，输入为学生项目顶层的 `JML/JML.java`。三个数组 Suite 使用固定观察点，语法和命令见[三题评测与测试点](USAGE.md#array-exercises)。
 
 ## 1. 提交材料与调用
 
@@ -34,7 +34,7 @@ public interface CounterInterface {
 
 方法名、参数名和受支持的查询由所选 Suite/Profile 决定。只有一段脱离方法声明的 JML 子句不能直接提交；`.jml` 扩展名也不代表本组件支持完整 OpenJML sidecar 语法。输入需要的类型与查询含义由 Profile 解释，不进行 Java 编译。
 
-提交中必须存在且只存在一个 Suite 目标方法声明，不能通过重载/重复声明让评测器猜目标。参数名称和 Java 类型须匹配 Suite；返回类型、是否 `static` 和 `throws` 集合须与参考声明相符。JML 合同必须是归属于目标方法的单个完整 `/*@ ... @*/` 块；合同块与声明之间可以有普通注释，块内普通注释不保证支持。`safe`／`pure` 声明标记允许存在。多个相邻合同块、未完成行为、`signals_only`、`invariant`、`model` 等未知条款会被拒绝。源码识别只覆盖本组件需要的受限格式，不是完整 Java 解析器。学生提交中的此类问题返回 `FAIL`，评测端参考合同中的此类问题返回 `ERROR`。
+提交中必须存在且只存在一个 Suite 目标方法声明，不能通过重载/重复声明让评测器猜目标。参数名称和 Java 类型须匹配 Suite；返回类型、是否 `static` 和 `throws` 集合须与参考声明相符。JML 合同必须是归属于目标方法的单个完整 `/*@ ... @*/` 块。独立 JML 三题也接受连续的 `//@` 合同行。合同块与声明之间可以有普通注释，块内普通注释不保证支持。`safe`／`pure` 声明标记允许存在。多个相邻合同块、未完成行为、`invariant`、`model` 等未知条款会被拒绝。源码识别只覆盖本组件需要的受限格式，不是完整 Java 解析器。学生提交中的此类问题返回 `FAIL`，评测端参考合同中的此类问题返回 `ERROR`。
 
 学生源码上限为 1 MiB；每条表达式最多 4096 个 token；语法嵌套最多 32 层；表达式 AST 深度最多 128；整数文字最多 4096 位。触发这些上限的学生提交属于 `FAIL`，退出码为 `1` 且返回成绩 JSON。评测端的参考源触发上限或解析异常属于 `ERROR`，退出码为 `2`，JSON 不含 `score`、`passed`；服务器诊断细节只写入标准错误。
 

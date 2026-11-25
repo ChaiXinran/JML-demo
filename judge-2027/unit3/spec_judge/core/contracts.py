@@ -27,6 +27,7 @@ class Behavior:
     signals: tuple[tuple[str, Expr], ...]
     assignables: tuple[str, ...]
     output_ensures: tuple[str, ...]
+    signals_only: tuple[str, ...] | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -42,6 +43,12 @@ class MethodDeclaration:
     start: int
     end: int
     signature: MethodSignature
+
+
+@dataclasses.dataclass(frozen=True)
+class _ContractSource:
+    body: str
+    body_start: int
 
 
 @dataclasses.dataclass(frozen=True)
@@ -197,7 +204,9 @@ def extract_jml_block(java_source: str, method_name: str) -> str:
     return _extract_jml_match(java_source, method_name).group("body")
 
 
-def extract_clauses(block: str, line_offset: int = 0) -> list[Clause]:
+def extract_clauses(
+    block: str, line_offset: int = 0, *, extended: bool = False
+) -> list[Clause]:
     cleaned = "\n".join(re.sub(r"^\s*@\s?", "", line).rstrip() for line in block.splitlines())
     # Consume the complete block. A regex search for known keywords used to
     # silently discard signals_only, invariants and arbitrary trailing text.
@@ -233,7 +242,10 @@ def extract_clauses(block: str, line_offset: int = 0) -> list[Clause]:
             header_seen = True
             position += header.end()
             continue
-        start = re.match(r"(requires|ensures|signals|assignable)\b\s*", rest)
+        supported_clauses = "requires|ensures|signals|assignable"
+        if extended:
+            supported_clauses += "|signals_only"
+        start = re.match(r"(" + supported_clauses + r")\b\s*", rest)
         if start is None:
             token = re.match(r"\S+", rest).group()[:60]
             raise SpecError(f"第 {line} 行不支持的 JML 条款或文本：{token}")
@@ -264,10 +276,11 @@ def extract_clauses(block: str, line_offset: int = 0) -> list[Clause]:
 
 
 def _expression(
-    clause: Clause, profile: EvaluationProfile, variables: dict[str, str]
+    clause: Clause, profile: EvaluationProfile, variables: dict[str, str],
+    *, extended: bool = False,
 ) -> Expr:
     try:
-        expression = ExpressionParser(clause.body).parse()
+        expression = ExpressionParser(clause.body, extended=extended).parse()
         validate_calls(expression, profile)
         result_type = infer_type(expression, profile, variables)
         if result_type != "bool":
@@ -277,23 +290,117 @@ def _expression(
         raise SpecError(f"第 {clause.line} 行 {clause.kind}：{error}") from error
 
 
+def _extract_extended_contract(java_source: str, method_name: str) -> _ContractSource:
+    """Read one block contract or one lexer-identified `//@` contract sequence."""
+    declaration = _method_declaration(java_source, method_name)
+    declaration_start = declaration.start
+    masked = _mask_non_code(java_source)
+    blocks = _jml_blocks(java_source)
+
+    # Gather comments that touch the declaration through whitespace/comments only.
+    # Keep declaration markers separate from behavior contracts.
+    attached_blocks: list[re.Match[str]] = []
+    cursor = declaration_start
+    for block in reversed(blocks):
+        if block.end() > cursor:
+            continue
+        if masked[block.end():cursor].strip():
+            break
+        cursor = block.start()
+        if block.group("body").strip() in _DECLARATION_MARKERS:
+            continue
+        attached_blocks.append(block)
+
+    line_comments = [
+        token for token in _NON_CODE.finditer(java_source, 0, declaration_start)
+        if token.group().startswith("//@")
+        and not masked[token.end():declaration_start].strip()
+    ]
+    if attached_blocks and line_comments:
+        raise SpecError("目标方法前同时存在块合同和 //@ 行合同；请只保留一种写法")
+    if len(attached_blocks) > 1:
+        raise SpecError("目标方法前存在多个相邻 JML 块；请将行为合同合并为一个块")
+
+    if attached_blocks:
+        block = attached_blocks[0]
+        return _ContractSource(block.group("body"), block.start("body"))
+
+    if line_comments:
+        # Every recognized line contract must be part of one uninterrupted run.
+        # Ordinary comments between clauses would otherwise make the extracted
+        # contract ambiguous, so reject them instead of silently dropping clauses.
+        for previous, current in zip(line_comments, line_comments[1:]):
+            if java_source[previous.end():current.start()].strip():
+                raise SpecError("目标方法的 //@ 合同条款必须连续，不能被其他注释分隔")
+
+        first = line_comments[0]
+        pieces = [first.group()[3:]]
+        previous = first
+        for current in line_comments[1:]:
+            pieces.append(java_source[previous.end():current.start()])
+            pieces.append(current.group()[3:])
+            previous = current
+        return _ContractSource("".join(pieces), first.start() + 3)
+
+    raise SpecError(f"未找到紧邻方法 {method_name} 的 JML 注释块或 //@ 合同")
+
+
+def _normalized_java_type(type_name: str) -> str:
+    normalized = re.sub(r"\s+", "", type_name)
+    return {
+        "boolean": "bool",
+        "boolean[]": "bool[]",
+        "String": "string",
+    }.get(normalized, normalized)
+
+
+def _parse_signals_only(clause: Clause) -> tuple[str, ...]:
+    body = clause.body.strip()
+    if body == r"\nothing":
+        return ()
+    names = [name.strip() for name in body.split(",")]
+    qualified_name = _IDENTIFIER + r"(?:\." + _IDENTIFIER + r")*"
+    if not names or any(not re.fullmatch(qualified_name, name) for name in names):
+        raise SpecError(
+            f"第 {clause.line} 行 signals_only：只支持逗号分隔的异常类名或 \\nothing"
+        )
+    if len(set(names)) != len(names):
+        raise SpecError(f"第 {clause.line} 行 signals_only：异常类名不能重复")
+    return tuple(names)
+
+
 def parse_contract(java_source: str, method_name: str, profile: EvaluationProfile) -> MethodContract:
     if "{{" in java_source:
         placeholder = java_source.index("{{")
         line = java_source.count("\n", 0, placeholder) + 1
         raise SpecError(f"第 {line} 行仍有未填写的空位")
     declaration = _method_declaration(java_source, method_name)
+    extended = bool(getattr(profile, "extended_jml", False))
     expected_parameters = dict(profile.parameter_types(method_name))
     actual_parameters = tuple(
-        (name, {"boolean": "bool", "String": "string"}.get(kind, kind))
+        (name, _normalized_java_type(kind))
         for kind, name in declaration.signature.parameters
     )
     if len(actual_parameters) != len(expected_parameters) or dict(actual_parameters) != expected_parameters:
         raise SpecError(f"目标方法 {method_name} 的参数名称或类型与 Suite 不一致")
-    block = _extract_jml_match(java_source, method_name)
-    line_offset = java_source.count("\n", 0, block.start("body"))
-    clauses = extract_clauses(block.group("body"), line_offset)
+    expected_result_type = getattr(profile, "result_type", None)
+    if expected_result_type is not None and _normalized_java_type(
+        declaration.signature.return_type
+    ) != expected_result_type:
+        raise SpecError(
+            f"目标方法 {method_name} 的返回类型与 Suite 不一致："
+            f"期望 {expected_result_type}，实际 {declaration.signature.return_type}"
+        )
+
+    if extended:
+        contract_source = _extract_extended_contract(java_source, method_name)
+    else:
+        block = _extract_jml_match(java_source, method_name)
+        contract_source = _ContractSource(block.group("body"), block.start("body"))
+    line_offset = java_source.count("\n", 0, contract_source.body_start)
+    clauses = extract_clauses(contract_source.body, line_offset, extended=extended)
     variables = dict(profile.parameter_types(method_name))
+    variables.update(getattr(profile, "state_variables", {}))
     grouped: dict[int, list[Clause]] = {}
     for clause in clauses:
         grouped.setdefault(clause.behavior_index, []).append(clause)
@@ -303,22 +410,42 @@ def parse_contract(java_source: str, method_name: str, profile: EvaluationProfil
         ensures: list[Expr] = []
         outputs: list[str] = []
         for clause in (item for item in group if item.kind == "ensures"):
-            if clause.body.startswith("(* output->"):
+            if not extended and clause.body.startswith("(* output->"):
                 outputs.append(clause.body)
             else:
-                ensures.append(_expression(clause, profile, variables))
+                ensure_variables = dict(variables)
+                if expected_result_type is not None:
+                    ensure_variables[r"\result"] = expected_result_type
+                ensures.append(_expression(
+                    clause, profile, ensure_variables, extended=extended,
+                ))
         signals: list[tuple[str, Expr]] = []
         for clause in (item for item in group if item.kind == "signals"):
             match = re.match(r"^\((?P<exception>[A-Za-z_]\w*)\s+[A-Za-z_]\w*\)\s*(?P<condition>.+)$", clause.body)
             if match is None:
                 raise SpecError(f"第 {clause.line} 行 signals：异常声明格式错误")
             condition = dataclasses.replace(clause, body=match.group("condition"))
-            signals.append((match.group("exception"), _expression(condition, profile, variables)))
+            signals.append((match.group("exception"), _expression(
+                condition, profile, variables, extended=extended,
+            )))
+        signals_only_clauses = [item for item in group if item.kind == "signals_only"]
+        if len(signals_only_clauses) > 1:
+            raise SpecError(
+                f"第 {signals_only_clauses[1].line} 行 signals_only："
+                "同一行为中最多只能出现一个 signals_only 条款"
+            )
+        signals_only = (
+            _parse_signals_only(signals_only_clauses[0])
+            if signals_only_clauses else None
+        )
         behaviors.append(Behavior(
             group[0].behavior_kind,
-            tuple(_expression(item, profile, variables) for item in group if item.kind == "requires"),
+            tuple(_expression(
+                item, profile, variables, extended=extended,
+            ) for item in group if item.kind == "requires"),
             tuple(ensures), tuple(signals),
             tuple(item.body for item in group if item.kind == "assignable"), tuple(outputs),
+            signals_only,
         ))
     if not behaviors:
         raise SpecError("目标方法的 JML 合同没有受支持的行为子句")

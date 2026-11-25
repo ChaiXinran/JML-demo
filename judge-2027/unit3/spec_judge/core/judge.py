@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import dataclasses
 
+from .array_frame import Frame, frame_allows_transition, frame_locations
 from .contracts import Behavior, MethodContract
+from .errors import SpecError
 from .expressions import evaluate
-from .profile import EvaluationProfile, Scenario
+from .profile import EvaluationBudget, EvaluationProfile, ProfileError, Scenario
 
 
 @dataclasses.dataclass(frozen=True)
@@ -49,6 +51,8 @@ def _all(
 def normal_applicable(
     contract: MethodContract, scenario: Scenario, profile: EvaluationProfile
 ) -> bool:
+    if getattr(profile, "extended_jml", False):
+        return _normal_available(_active_behaviors(contract, scenario, profile))
     return any(_all(behavior.requires, scenario, profile, pre=True) for behavior in contract.normal_behaviors)
 
 
@@ -56,6 +60,8 @@ def accepts_normal_transition(
     contract: MethodContract, scenario: Scenario, profile: EvaluationProfile
 ) -> bool:
     """Every applicable normal behavior contributes its postconditions."""
+    if getattr(profile, "extended_jml", False):
+        return _array_observation(contract, scenario, profile, post=True)
     return all(
         not _all(behavior.requires, scenario, profile, pre=True)
         or _all(behavior.ensures, scenario, profile)
@@ -146,33 +152,84 @@ def effective_frame(
     return result
 
 
-def compare_contracts(
-    reference: MethodContract,
-    candidate: MethodContract,
-    pre_points: list[Scenario],
-    post_points: list[Scenario],
-    profile: EvaluationProfile,
-) -> ContractComparison:
-    applicability_passed, applicability_total, applicability_fraction = _coverage(pre_points, lambda point:
-        normal_applicable(reference, point, profile)
-        == normal_applicable(candidate, point, profile)
-    )
-    postcondition_passed, postcondition_total, postcondition_fraction = _coverage(post_points, lambda point:
-        accepts_normal_transition(reference, point, profile)
-        == accepts_normal_transition(candidate, point, profile)
-    )
-    exceptions_passed, exceptions_total, exceptions_fraction = _coverage(pre_points, lambda point:
-        exception_outcomes(reference, point, profile)
-        == exception_outcomes(candidate, point, profile)
-    )
-    frame_passed, frame_total, frame_fraction = _coverage(pre_points, lambda point:
-        effective_frame(reference, point, profile)
-        == effective_frame(candidate, point, profile)
-    )
-    output_matches = sorted(reference.output_ensures) == sorted(candidate.output_ensures)
+def _active_behaviors(contract, scenario, profile):
+    return [behavior for behavior in contract.behaviors if _behavior_applies(behavior, scenario, profile)]
+
+
+def _normal_available(active: list[Behavior]) -> bool:
+    return bool(active) and all(behavior.kind != "exceptional" for behavior in active)
+
+
+def _array_exceptions(active, context, profile):
+    if any(behavior.kind == "normal" for behavior in active):
+        return frozenset()
+    outcomes = []
+    for behavior in active:
+        signals = [(name.removeprefix("java.lang."), condition) for name, condition in behavior.signals]
+        if behavior.signals_only is not None:
+            allowed = {name.removeprefix("java.lang.") for name in behavior.signals_only}
+        elif signals:
+            allowed = {name for name, _ in signals}
+        elif behavior.kind == "exceptional":
+            allowed = {"<unspecified>"}
+        else:
+            continue
+        for name, condition in signals:
+            if name in allowed and not evaluate(condition, context, profile):
+                allowed.remove(name)
+        outcomes.append(allowed)
+    return frozenset(set.intersection(*outcomes)) if outcomes else frozenset()
+
+
+def _array_frame(active, context, profile) -> Frame:
+    result: Frame = None
+    for behavior in active:
+        for clause in behavior.assignables:
+            result = _intersect_frames(result, frame_locations(clause, context, profile))
+    return result
+
+
+def _array_observation(contract, scenario, profile, *, post=False):
+    active = _active_behaviors(contract, scenario, profile)
+    applicable = _normal_available(active)
+    if post and not applicable:
+        return False
+    context = scenario.context().pre_state()
+    frame = _array_frame(active, context, profile)
+    if post:
+        return frame_allows_transition(frame, scenario, profile) and all(
+            _all(behavior.ensures, scenario, profile) for behavior in active
+        )
+    return applicable, _array_exceptions(active, context, profile), frame
+
+
+def _array_projections(contract, pre_points, post_points, profile, *, reference=False):
+    budget = EvaluationBudget()
+    try:
+        pre = {
+            point.id: _array_observation(contract, dataclasses.replace(point, budget=budget), profile)
+            for point in pre_points
+        }
+        post = {}
+        for point in post_points:
+            accepts = _array_observation(contract, dataclasses.replace(point, budget=budget), profile, post=True)
+            if reference and point.reference_accepts is not None and accepts != point.reference_accepts:
+                raise ProfileError(f"参考合同与观察点 {point.id} 的自检判定不一致")
+            post[point.id] = accepts
+        return pre, post
+    except SpecError as error:
+        if reference:
+            raise ProfileError(f"参考合同求值失败：{error}") from error
+        raise
+
+
+def _summarize(availability, postconditions, exceptions, frames, output_matches) -> ContractComparison:
+    applicability_passed, applicability_total, applicability_fraction = availability
+    postcondition_passed, postcondition_total, postcondition_fraction = postconditions
+    exceptions_passed, exceptions_total, exceptions_fraction = exceptions
+    frame_passed, frame_total, frame_fraction = frames
     locked_passed = frame_passed + (1.0 if output_matches else 0.0)
     locked_total = frame_total + 1.0
-    locked_fraction = locked_passed / locked_total
     return ContractComparison(
         applicability_matches=applicability_fraction == 1.0,
         postcondition_matches=postcondition_fraction == 1.0,
@@ -187,7 +244,44 @@ def compare_contracts(
         postcondition_total=postcondition_total,
         exceptions_passed=exceptions_passed,
         exceptions_total=exceptions_total,
-        locked_fraction=locked_fraction,
+        locked_fraction=locked_passed / locked_total,
         locked_passed=locked_passed,
         locked_total=locked_total,
     )
+
+
+def compare_contracts(
+    reference: MethodContract,
+    candidate: MethodContract,
+    pre_points: list[Scenario],
+    post_points: list[Scenario],
+    profile: EvaluationProfile,
+) -> ContractComparison:
+    if getattr(profile, "extended_jml", False):
+        ref_pre, ref_post = _array_projections(reference, pre_points, post_points, profile, reference=True)
+        cand_pre, cand_post = _array_projections(candidate, pre_points, post_points, profile)
+        return _summarize(
+            _coverage(pre_points, lambda point: ref_pre[point.id][0] == cand_pre[point.id][0]),
+            _coverage(post_points, lambda point: ref_post[point.id] == cand_post[point.id]),
+            _coverage(pre_points, lambda point: ref_pre[point.id][1] == cand_pre[point.id][1]),
+            _coverage(pre_points, lambda point: ref_pre[point.id][2] == cand_pre[point.id][2]),
+            True,
+        )
+    applicability = _coverage(pre_points, lambda point:
+        normal_applicable(reference, point, profile)
+        == normal_applicable(candidate, point, profile)
+    )
+    postcondition = _coverage(post_points, lambda point:
+        accepts_normal_transition(reference, point, profile)
+        == accepts_normal_transition(candidate, point, profile)
+    )
+    exceptions = _coverage(pre_points, lambda point:
+        exception_outcomes(reference, point, profile)
+        == exception_outcomes(candidate, point, profile)
+    )
+    frames = _coverage(pre_points, lambda point:
+        effective_frame(reference, point, profile)
+        == effective_frame(candidate, point, profile)
+    )
+    output_matches = sorted(reference.output_ensures) == sorted(candidate.output_ensures)
+    return _summarize(applicability, postcondition, exceptions, frames, output_matches)

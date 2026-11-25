@@ -12,6 +12,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+from core.array_frame import validate_frame
 from core.contracts import (
     Clause, MethodContract, extract_clauses, extract_jml_block,
     parse_contract as parse_generic_contract,
@@ -63,6 +64,14 @@ def parse_contract(
     profile: EvaluationProfile = DEFAULT_PROFILE,
 ) -> MethodContract:
     contract = parse_generic_contract(java_source, method_name, profile)
+    if getattr(profile, "extended_jml", False):
+        parameters = profile.parameter_types(method_name)
+        for clause in contract.clauses:
+            if clause.kind == "assignable":
+                try:
+                    validate_frame(clause.body, profile, parameters)
+                except SpecError as error:
+                    raise SpecError(f"第 {clause.line} 行 assignable：{error}") from error
     shape = getattr(profile, "contract_shape", None)
     if shape is not None:
         actual = {
@@ -253,7 +262,7 @@ def evaluate_contracts(
 
     post_mismatch = not comparison.postcondition_matches
     post_slots = getattr(profile, "diagnostics", {}).get("postcondition", {}).get("slots", [])
-    if post_mismatch and len(reference.ensures) == len(candidate.ensures) == len(post_slots):
+    if post_mismatch and post_slots and len(reference.ensures) == len(candidate.ensures) == len(post_slots):
         post_lines = candidate.lines_for("ensures", normal_only=True)
         for index, label in enumerate(post_slots):
             if not _mismatch(reference.ensures[index], candidate.ensures[index], post_scenarios, profile):
@@ -275,7 +284,7 @@ def evaluate_contracts(
 
     exception_mismatch = not comparison.exceptions_match
     exception_slots = getattr(profile, "diagnostics", {}).get("exceptions", {}).get("slots", [])
-    if exception_mismatch and len(reference.signals) == len(candidate.signals) == len(exception_slots):
+    if exception_mismatch and exception_slots and len(reference.signals) == len(candidate.signals) == len(exception_slots):
         signal_lines = candidate.lines_for("signals")
         for index, label in enumerate(exception_slots):
             reference_exception, reference_expression = reference.signals[index]
@@ -291,7 +300,7 @@ def evaluate_contracts(
     elif exception_mismatch:
         diagnostics.append(_diagnostic(
             profile, "exceptions", SemanticDiagnosticCode.EXCEPTION_PARTITION_MISMATCH,
-            candidate.lines_for("signals"),
+            tuple(sorted((*candidate.lines_for("signals"), *candidate.lines_for("signals_only")))),
         ))
     elif enforce_solver and solver_statuses.get("exceptions") == SmtStatus.SAT:
         diagnostics.append(_diagnostic(
@@ -321,6 +330,8 @@ def evaluate_contracts(
     total_weight = sum(weights.values())
     passed_weight = sum(weight * fractions[name] for name, weight in weights.items())
     score = round(100 * passed_weight / total_weight)
+    if diagnostics and getattr(profile, "extended_jml", False):
+        score = min(99, score)
     coverage = {
         "applicability": {
             "passed_weight": comparison.applicability_passed,
@@ -370,6 +381,8 @@ def evaluate_sources(
         candidate = parse_contract(student_source, method_name, profile)
         if candidate.signature != reference.signature:
             raise SpecError("目标方法签名与参考声明不一致：请核对返回类型、参数、static 和 throws")
+        if getattr(profile, "extended_jml", False):
+            return evaluate_contracts(reference, candidate, method_name, profile)
     except (SpecError, RecursionError) as error:
         return SemanticResult(0, False, (Diagnostic(
             SemanticDiagnosticCode.JML_FORMAT_OR_SYMBOL.value, "SUBMISSION", "JML 格式或接口符号",

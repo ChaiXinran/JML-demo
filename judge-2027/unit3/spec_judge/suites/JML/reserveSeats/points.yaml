@@ -1,0 +1,246 @@
+{
+  "schema_version": 1,
+  "fixtures": {},
+  "points": [
+    {
+      "id": "negative_start",
+      "kind": "pre",
+      "args": {"start": -1, "count": 1},
+      "pre": {"occupied": [false, false]}
+    },
+    {
+      "id": "start_at_array_end",
+      "kind": "pre",
+      "args": {"start": 2, "count": 1},
+      "pre": {"occupied": [false, false]}
+    },
+    {
+      "id": "zero_count",
+      "kind": "pre",
+      "args": {"start": 0, "count": 0},
+      "pre": {"occupied": [false, false]}
+    },
+    {
+      "id": "negative_count",
+      "kind": "pre",
+      "args": {"start": 0, "count": -1},
+      "pre": {"occupied": [false, false]}
+    },
+    {
+      "id": "count_exceeds_remaining",
+      "kind": "pre",
+      "args": {"start": 2, "count": 2},
+      "pre": {"occupied": [false, false, false]}
+    },
+    {
+      "id": "empty_array_cannot_reserve",
+      "kind": "pre",
+      "args": {"start": 0, "count": 1},
+      "pre": {"occupied": []}
+    },
+    {
+      "id": "max_int_start",
+      "kind": "pre",
+      "args": {"start": 2147483647, "count": 1},
+      "pre": {"occupied": [false]}
+    },
+    {
+      "id": "max_int_count",
+      "kind": "pre",
+      "args": {"start": 0, "count": 2147483647},
+      "pre": {"occupied": [false, false]}
+    },
+    {
+      "id": "occupied_inside_requested_range",
+      "kind": "pre",
+      "args": {"start": 0, "count": 3},
+      "pre": {"occupied": [false, true, false]}
+    },
+    {
+      "id": "free_interior_range",
+      "kind": "pre",
+      "args": {"start": 1, "count": 2},
+      "pre": {"occupied": [true, false, false, true]}
+    },
+    {
+      "id": "one_free_last_seat",
+      "kind": "pre",
+      "args": {"start": 2, "count": 1},
+      "pre": {"occupied": [true, false, false]}
+    },
+    {
+      "id": "whole_array_free",
+      "kind": "pre",
+      "args": {"start": 0, "count": 2},
+      "pre": {"occupied": [false, false]}
+    },
+    {
+      "id": "success_updates_requested_range_only",
+      "kind": "post",
+      "args": {"start": 1, "count": 2},
+      "pre": {"occupied": [true, false, false, true]},
+      "post": {"copy": "pre", "occupied": [true, true, true, true]},
+      "result": true,
+      "reference_accepts": true
+    },
+    {
+      "id": "success_at_last_seat",
+      "kind": "post",
+      "args": {"start": 2, "count": 1},
+      "pre": {"occupied": [true, false, false]},
+      "post": {"copy": "pre", "occupied": [true, false, true]},
+      "result": true,
+      "reference_accepts": true
+    },
+    {
+      "id": "already_occupied_range_returns_false",
+      "kind": "post",
+      "args": {"start": 0, "count": 3},
+      "pre": {"occupied": [false, true, false]},
+      "post": {"copy": "pre", "occupied": [false, true, false]},
+      "result": false,
+      "reference_accepts": true
+    },
+    {
+      "id": "occupied_single_seat_returns_false",
+      "kind": "post",
+      "args": {"start": 2, "count": 1},
+      "pre": {"occupied": [false, false, true]},
+      "post": {"copy": "pre", "occupied": [false, false, true]},
+      "result": false,
+      "reference_accepts": true
+    },
+    {
+      "id": "wrong_false_on_free_range",
+      "kind": "post",
+      "args": {"start": 0, "count": 2},
+      "pre": {"occupied": [false, false]},
+      "post": {"copy": "pre", "occupied": [false, false]},
+      "result": false,
+      "reference_accepts": false
+    },
+    {
+      "id": "wrong_true_without_reserving",
+      "kind": "post",
+      "args": {"start": 1, "count": 1},
+      "pre": {"occupied": [false, false]},
+      "post": {"copy": "pre", "occupied": [false, false]},
+      "result": true,
+      "reference_accepts": false
+    },
+    {
+      "id": "wrong_write_outside_range",
+      "kind": "post",
+      "args": {"start": 1, "count": 1},
+      "pre": {"occupied": [false, false, false]},
+      "post": {"copy": "pre", "occupied": [true, true, false]},
+      "result": true,
+      "reference_accepts": false
+    },
+    {
+      "id": "wrong_reallocated_array",
+      "kind": "post",
+      "args": {"start": 0, "count": 1},
+      "pre": {"occupied": [false, false]},
+      "post": {"copy": "pre", "fresh": true, "occupied": [true, false]},
+      "result": true,
+      "reference_accepts": false
+    },
+    {
+      "id": "invalid_zero_count_has_no_normal_return",
+      "kind": "post",
+      "args": {"start": 0, "count": 0},
+      "pre": {"occupied": [false]},
+      "post": {"copy": "pre", "occupied": [false]},
+      "result": false,
+      "reference_accepts": false
+    },
+    {
+      "id": "invalid_range_mutates_state",
+      "kind": "post",
+      "args": {"start": -1, "count": 1},
+      "pre": {"occupied": [false, false]},
+      "post": {"copy": "pre", "occupied": [true, false]},
+      "result": true,
+      "reference_accepts": false
+    },
+    {
+      "id": "negative_int_limits",
+      "kind": "pre",
+      "args": {"start": -2147483648, "count": -2147483648},
+      "pre": {"occupied": [false]}
+    },
+    {
+      "id": "out_of_range_int_sum",
+      "kind": "pre",
+      "args": {"start": 1, "count": 2147483647},
+      "pre": {"occupied": [false, false]}
+    },
+    {
+      "id": "conflict_nonzero_start",
+      "kind": "pre",
+      "args": {"start": 1, "count": 2},
+      "pre": {"occupied": [false, false, true, false]}
+    },
+    {
+      "id": "success_returns_false",
+      "kind": "post",
+      "args": {"start": 1, "count": 2},
+      "pre": {"occupied": [true, false, false, true]},
+      "post": {"copy": "pre", "occupied": [true, true, true, true]},
+      "result": false,
+      "reference_accepts": false
+    },
+    {
+      "id": "partially_reserved_range",
+      "kind": "post",
+      "args": {"start": 1, "count": 2},
+      "pre": {"occupied": [true, false, false, true]},
+      "post": {"copy": "pre", "occupied": [true, true, false, true]},
+      "result": true,
+      "reference_accepts": false
+    },
+    {
+      "id": "conflict_mutates_target",
+      "kind": "post",
+      "args": {"start": 1, "count": 2},
+      "pre": {"occupied": [false, false, true, false]},
+      "post": {"copy": "pre", "occupied": [false, true, true, false]},
+      "result": false,
+      "reference_accepts": false
+    },
+    {
+      "id": "conflict_returns_true",
+      "kind": "post",
+      "args": {"start": 1, "count": 2},
+      "pre": {"occupied": [false, false, true, false]},
+      "post": {"copy": "pre", "occupied": [false, false, true, false]},
+      "result": true,
+      "reference_accepts": false
+    },
+    {
+      "id": "success_with_free_seats_outside_range",
+      "kind": "post",
+      "args": {"start": 1, "count": 2},
+      "pre": {"occupied": [false, false, false, false]},
+      "post": {"copy": "pre", "occupied": [false, true, true, false]},
+      "result": true,
+      "reference_accepts": true
+    },
+    {
+      "id": "stress_reserve_three_seats_on_success",
+      "kind": "post",
+      "args": {"start": 0, "count": 3},
+      "pre": {"occupied": [false, false, false]},
+      "post": {"copy": "pre", "occupied": [true, true, true]},
+      "result": true,
+      "reference_accepts": true
+    },
+    {
+      "id": "coverage_reserve_three_seats_applicability",
+      "kind": "pre",
+      "args": {"start": 0, "count": 3},
+      "pre": {"occupied": [false, false, false]}
+    }
+  ]
+}

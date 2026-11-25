@@ -2,11 +2,11 @@
 
 第一次添加测试点或新方法，请先看 [手把手使用说明](USAGE.md)；它提供完整的文件示例、逐步命令与排错顺序。
 
-本目录维护一个独立的 JML–JML 评测器组件。正式入口 `semantic_check.py` 在 suite 声明的抽象状态上比较参考 JML 与学生提交中的 JML，不编译或运行学生 Java，也不调用 Web、Java 或 OpenJML。学生可提交 UTF-8 的 `.java` 或 `.jml` 源文本；两种格式都必须包含唯一目标方法声明，以及归属于该声明的唯一完整 JML 注释块。合同块与方法声明之间允许夹有普通注释；合同块内部的普通注释不保证支持。这里的 `.jml` 只是接受的文件扩展名，不表示支持完整 OpenJML sidecar 文件格式。源码识别只覆盖本组件所需的受限格式，不是完整 Java 解析器。Web、Java 实现和 OpenJML 验证由协作者维护，和本组件的 JML–JML 评测分别接入。`consistency_judge.py`、`runtime_verifier.py`、`verification_evidence.py` 及其历史测试和 Java 示例暂留目录中供兼容，不属于本轮维护范围，也不进入独立发布包；`spec_judge.py` 是早期原型。
+本目录维护一个独立的 JML–JML 评测器组件。正式入口 `semantic_check.py` 在 suite 声明的抽象状态上比较参考 JML 与学生提交中的 JML，不编译或运行学生 Java，也不调用 Web、Java 或 OpenJML。学生可提交 UTF-8 的 `.java` 或 `.jml` 源文本；两种格式都必须包含唯一目标方法声明，以及归属于该声明的 JML 合同。合同块与方法声明之间允许夹有普通注释；合同块内部的普通注释不保证支持。这里的 `.jml` 只是接受的文件扩展名，不表示支持完整 OpenJML sidecar 文件格式。源码识别只覆盖本组件所需的受限格式，不是完整 Java 解析器。Web、Java 实现和 OpenJML 验证由协作者维护，和本组件的 JML–JML 评测分别接入。`consistency_judge.py`、`runtime_verifier.py`、`verification_evidence.py` 及其历史测试和 Java 示例暂留目录中供兼容，不属于本轮维护范围，也不进入独立发布包；`spec_judge.py` 是早期原型。
 
 ## 1. 当前能力和保证范围
 
-当前正式范围是五个 Suite，使用两个 Profile：
+原有五个 Suite 使用 `network_v1` 和 `counter_v1`：
 
 - `NetworkInterface.followUser`：原始网络方法；
 - `NetworkInterface.containsBoth`：复用已有网络 Profile 的新方法；
@@ -14,7 +14,15 @@
 - `NetworkInterface.unfollowUser`：独立方法目录中的取消关注练习；
 - `CounterInterface.checkNonNegative`：独立标量 Profile 和无参数方法。
 
-本次上机候选版本的正式支持范围固定为上述五个 Suite 和两个 Profile：`network_v1`、`counter_v1`。当前任务没有增加 JML 语法或领域能力；量词、`\result` 及完整 OpenJML 语义仍不支持。后文的 Profile/新方法开发说明用于未来维护，不代表这次发布包已经支持任意新题型。
+新版指导书中的三道独立题使用 `array_v1`，每周读取提交项目的 `JML/JML.java`。
+
+| 周次 | 题目 | Suite |
+| --- | --- | --- |
+| HW9 | 自习室签到记录 `firstDuplicateIndex` | [suite.yaml](suites/JML/firstDuplicateIndex/suite.yaml) |
+| HW10 | 实验室座位预订 `reserveSeats` | [suite.yaml](suites/JML/reserveSeats/suite.yaml) |
+| HW11 | 自习室连座查询 `longestFreeBlock` | [suite.yaml](suites/JML/longestFreeBlock/suite.yaml) |
+
+三题使用固定观察点，开启对数组、返回值、有限范围量词、异常类型集合和数组 frame 的支持。原有五个 Suite 仍用原来的子集和配置。参见[三题命令与点集说明](USAGE.md#array-exercises)。
 
 其中 `followUser` 使用：
 
@@ -25,7 +33,7 @@
 - 覆盖缺失用户、自关注、重复关注和反向关系等前态，以及正确和常见错误候选后态；
 - 支持布尔逻辑、整数比较、`\old`、`containsUser`、`getUser`、`isFollowing` 和 `containsFollower`。
 
-默认评分结论只表示参考和学生合同在 suite 声明的有限测试域上一致，不表示任意状态上的完整逻辑等价。当前可对声明的参数域和状态列表做确定性笛卡尔展开，并已按行为归一化 `requires`、`ensures` 和 `signals`。可选 SMT 后端能检查当前 AST 子集的逻辑差异；`network_v1` 已配置部分领域不变量公理，但并非完整的领域或 JML 语义，量词、集合运算和完整 JML frame 语法仍未支持。后续路线见本目录 [TODO.md](TODO.md)。
+默认评分结论只表示参考和学生合同在 suite 声明的有限测试域上一致，不表示任意状态上的完整逻辑等价。当前可对声明的参数域和状态列表做确定性笛卡尔展开，并已按行为归一化 `requires`、`ensures` 和 `signals`。可选 SMT 后端能检查当前 AST 子集的逻辑差异；`network_v1` 已配置部分领域不变量公理，但并非完整的领域或 JML 语义，数组 Suite 的新语法只在固定点模式评测。当前不支持任意集合运算和完整 JML frame。后续路线见本目录 [TODO.md](TODO.md)。
 
 ### 可选安装 SMT
 
@@ -92,7 +100,7 @@ cat tests/fixtures/followUser/wrong-relation-direction.java | \
   --json
 ```
 
-`SUBMISSION` 是 UTF-8 `.java` 或 `.jml` 文件路径；传 `-` 时从标准输入读取。无论扩展名如何，提交文本都必须包含 Suite 指定的唯一目标方法声明，以及归属于此方法的唯一、完整 `/*@ ... @*/` JML 合同块。合同块与声明之间可以有普通注释；块内普通注释不保证支持。方法名及参数名称、Java 类型须匹配 Suite；返回类型、是否 `static` 和 `throws` 集合须匹配参考声明。`safe`／`pure` 声明标记允许存在；重复/重载目标方法、多个相邻合同块、未完成行为和未知条款（如 `signals_only`、`invariant`、`model`）均视为规格错误，不会被忽略。单独只有 JML 子句的 sidecar 不符合本 CLI 输入约定；`.jml` 后缀也不会触发 OpenJML sidecar 解析。源码识别只覆盖本组件所需的受限格式，不是完整 Java 解析器。命令形状为 `semantic_check.py SUBMISSION --suite SUITE --json`。suite 锁定方法、Profile、参考合同和测试点。参考 JML 与隐藏测试点只存放于评测端发布包，不随学生提交传递。
+`SUBMISSION` 是 UTF-8 `.java` 或 `.jml` 文件路径；传 `-` 时从标准输入读取。无论扩展名如何，提交文本都必须包含 Suite 指定的唯一目标方法声明，以及归属于此方法的唯一、完整 `/*@ ... @*/` 合同块。数组 Suite 也接受连续的 `//@` 合同行。合同块与声明之间可以有普通注释；块内普通注释不保证支持。方法名及参数名称、Java 类型须匹配 Suite；返回类型、是否 `static` 和 `throws` 集合须匹配参考声明。`safe`／`pure` 声明标记允许存在；重复/重载目标方法、多个相邻合同块、未完成行为和未知条款（如 `invariant`、`model`）均视为规格错误，不会被忽略。单独只有 JML 子句的 sidecar 不符合本 CLI 输入约定；`.jml` 后缀也不会触发 OpenJML sidecar 解析。源码识别只覆盖本组件所需的受限格式，不是完整 Java 解析器。命令形状为 `semantic_check.py SUBMISSION --suite SUITE --json`。suite 锁定方法、Profile、参考合同和测试点。参考 JML 与隐藏测试点只存放于评测端发布包，不随学生提交传递。
 
 本版对学生源码设置资源上限：提交不超过 1 MiB；单条表达式不超过 4096 个 token；表达式语法嵌套不超过 32 层；表达式 AST 深度不超过 128；整数文字最多 4096 位。学生提交触发上限时返回 `FAIL` JSON、退出码 `1`；评测端参考源触发上限或解析异常时返回 `ERROR`、退出码 `2`，不生成学生分数。
 

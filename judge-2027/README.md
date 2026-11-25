@@ -4,6 +4,8 @@
 
 学生练习 Web 的二进制分发、Java 上传和 JML–Java / OpenJML 验证由协作者维护。学生的 Java 与 JML 可作为独立材料提交；评测机将 JML 文件交给本组件，将 Java 实现交给相应的实现评测链，分别记录结果。
 
+- [2027 指导书独立 JML 三题的评测命令](unit3/spec_judge/USAGE.md#array-exercises)
+- [独立 JML 三题的模拟提交压力测试](stress_2027/README.md)
 - [评测器能力与命令](unit3/spec_judge/README.md)
 - [逐步添加测试点、方法、类和 Profile](unit3/spec_judge/USAGE.md)
 - [评测机输入、JSON 输出和发布包协议](unit3/spec_judge/INTEGRATION.md)

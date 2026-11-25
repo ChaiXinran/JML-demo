@@ -1,0 +1,237 @@
+{
+  "schema_version": 1,
+  "fixtures": {},
+  "points": [
+    {
+      "id": "null_input",
+      "kind": "pre",
+      "args": {"occupied": null},
+      "pre": {}
+    },
+    {
+      "id": "empty_input",
+      "kind": "pre",
+      "args": {"occupied": []},
+      "pre": {}
+    },
+    {
+      "id": "fully_occupied",
+      "kind": "pre",
+      "args": {"occupied": [true, true]},
+      "pre": {}
+    },
+    {
+      "id": "one_free_seat",
+      "kind": "pre",
+      "args": {"occupied": [true, false, true]},
+      "pre": {}
+    },
+    {
+      "id": "two_equal_free_blocks",
+      "kind": "pre",
+      "args": {"occupied": [false, false, true, false, false]},
+      "pre": {}
+    },
+    {
+      "id": "distinct_free_block_lengths",
+      "kind": "pre",
+      "args": {"occupied": [true, false, false, true, false, false, false]},
+      "pre": {}
+    },
+    {
+      "id": "empty_has_empty_result",
+      "kind": "post",
+      "args": {"occupied": []},
+      "pre": {},
+      "post": {},
+      "result": [],
+      "reference_accepts": true
+    },
+    {
+      "id": "all_occupied_has_empty_result",
+      "kind": "post",
+      "args": {"occupied": [true, true]},
+      "pre": {},
+      "post": {},
+      "result": [],
+      "reference_accepts": true
+    },
+    {
+      "id": "single_free_seat",
+      "kind": "post",
+      "args": {"occupied": [true, false, true]},
+      "pre": {},
+      "post": {},
+      "result": [1, 1],
+      "reference_accepts": true
+    },
+    {
+      "id": "longest_block_at_end",
+      "kind": "post",
+      "args": {"occupied": [true, false, false]},
+      "pre": {},
+      "post": {},
+      "result": [1, 2],
+      "reference_accepts": true
+    },
+    {
+      "id": "equal_lengths_choose_earliest",
+      "kind": "post",
+      "args": {"occupied": [false, false, true, false, false]},
+      "pre": {},
+      "post": {},
+      "result": [0, 2],
+      "reference_accepts": true
+    },
+    {
+      "id": "longest_among_three_blocks",
+      "kind": "post",
+      "args": {"occupied": [true, false, false, true, false, false, false]},
+      "pre": {},
+      "post": {},
+      "result": [4, 3],
+      "reference_accepts": true
+    },
+    {
+      "id": "null_result_not_allowed",
+      "kind": "post",
+      "args": {"occupied": [false]},
+      "pre": {},
+      "post": {},
+      "result": null,
+      "reference_accepts": false
+    },
+    {
+      "id": "wrong_result_length",
+      "kind": "post",
+      "args": {"occupied": [false, false]},
+      "pre": {},
+      "post": {},
+      "result": [0],
+      "reference_accepts": false
+    },
+    {
+      "id": "wrong_nonmaximal_block",
+      "kind": "post",
+      "args": {"occupied": [false, false, true]},
+      "pre": {},
+      "post": {},
+      "result": [0, 1],
+      "reference_accepts": false
+    },
+    {
+      "id": "wrong_later_tie",
+      "kind": "post",
+      "args": {"occupied": [false, false, true, false, false]},
+      "pre": {},
+      "post": {},
+      "result": [3, 2],
+      "reference_accepts": false
+    },
+    {
+      "id": "wrong_block_crosses_occupied_seat",
+      "kind": "post",
+      "args": {"occupied": [true, false, true]},
+      "pre": {},
+      "post": {},
+      "result": [1, 2],
+      "reference_accepts": false
+    },
+    {
+      "id": "wrong_nonempty_when_all_occupied",
+      "kind": "post",
+      "args": {"occupied": [true]},
+      "pre": {},
+      "post": {},
+      "result": [0, 1],
+      "reference_accepts": false
+    },
+    {
+      "id": "wrong_extreme_start",
+      "kind": "post",
+      "args": {"occupied": [false, true]},
+      "pre": {},
+      "post": {},
+      "result": [-2147483648, 1],
+      "reference_accepts": false
+    },
+    {
+      "id": "null_has_no_normal_return",
+      "kind": "post",
+      "args": {"occupied": null},
+      "pre": {},
+      "post": {},
+      "result": [],
+      "reference_accepts": false
+    },
+    {
+      "id": "empty_cannot_return_null",
+      "kind": "post",
+      "args": {"occupied": []},
+      "pre": {},
+      "post": {},
+      "result": null,
+      "reference_accepts": false
+    },
+    {
+      "id": "longest_block_at_start",
+      "kind": "post",
+      "args": {"occupied": [false, false, false, true, false]},
+      "pre": {},
+      "post": {},
+      "result": [0, 3],
+      "reference_accepts": true
+    },
+    {
+      "id": "wrong_zero_length_block",
+      "kind": "post",
+      "args": {"occupied": [false]},
+      "pre": {},
+      "post": {},
+      "result": [0, 0],
+      "reference_accepts": false
+    },
+    {
+      "id": "shorter_block_before_maximum",
+      "kind": "post",
+      "args": {"occupied": [false, true, false, false]},
+      "pre": {},
+      "post": {},
+      "result": [0, 1],
+      "reference_accepts": false
+    },
+    {
+      "id": "stress_longest_free_block_requires_nonempty",
+      "kind": "post",
+      "args": {"occupied": [false]},
+      "pre": {},
+      "post": {},
+      "result": [],
+      "reference_accepts": false
+    },
+    {
+      "id": "stress_longest_free_block_exact_result_shape",
+      "kind": "post",
+      "args": {"occupied": [false]},
+      "pre": {},
+      "post": {},
+      "result": [0, 1, 123],
+      "reference_accepts": false
+    },
+    {
+      "id": "stress_longest_free_block_all_occupied",
+      "kind": "post",
+      "args": {"occupied": [true, true, true, true, true, true, true, true, true]},
+      "pre": {},
+      "post": {},
+      "result": [],
+      "reference_accepts": true
+    },
+    {
+      "id": "coverage_longest_free_block_long_full_input",
+      "kind": "pre",
+      "args": {"occupied": [true, true, true, true, true, true, true, true, true]},
+      "pre": {}
+    }
+  ]
+}

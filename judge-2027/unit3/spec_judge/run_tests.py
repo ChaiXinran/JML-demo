@@ -11,6 +11,7 @@ def main() -> int:
         "test_semantic_judge",
         "test_cli",
         "test_hardening",
+        "test_2027_exercises",
     ])
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1

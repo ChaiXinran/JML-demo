@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "name": "JML.reserveSeats",
+  "profile": "array_v1",
+  "method": "reserveSeats",
+  "parameters": {
+    "start": "int",
+    "count": "int"
+  },
+  "result_type": "bool",
+  "contract_shape": {
+    "requires": {
+      "min": 0
+    },
+    "ensures": {
+      "min": 0
+    },
+    "signals": {
+      "min": 0
+    }
+  },
+  "grading": {
+    "applicability": 25,
+    "postcondition": 35,
+    "exceptions": 30,
+    "locked": 10
+  },
+  "solver": {
+    "mode": "off",
+    "timeout_ms": 1000
+  },
+  "reference": "reference.java",
+  "points": "points.yaml",
+  "quality": {
+    "min_mutation_score": 100,
+    "equivalent_mutations": {
+      "delete_conjunct.5": "1f586c99b11fc7768371c3432ce58e3e5ec4fee8992671f9e9f4eac845e55400",
+      "remove_old.1": "da29e70bcb4fabe7b12696d53a7bc1a2c6bdd9854a4fcba6b417b9d0fce391b1"
+    }
+  }
+}

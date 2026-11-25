@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "name": "JML.firstDuplicateIndex",
+  "profile": "array_v1",
+  "method": "firstDuplicateIndex",
+  "parameters": {
+    "ids": "int[]"
+  },
+  "result_type": "int",
+  "contract_shape": {
+    "requires": {
+      "min": 0
+    },
+    "ensures": {
+      "min": 0
+    },
+    "signals": {
+      "min": 0
+    }
+  },
+  "grading": {
+    "applicability": 20,
+    "postcondition": 65,
+    "exceptions": 5,
+    "locked": 10
+  },
+  "solver": {
+    "mode": "off",
+    "timeout_ms": 1000
+  },
+  "reference": "reference.java",
+  "points": "points.yaml",
+  "quality": {
+    "min_mutation_score": 100,
+    "equivalent_mutations": {
+      "flip_comparison.3": "afbd20166c95fb1d5af431614f8be25f82c7046ee41ba0e9f219051fc1b1b3fb"
+    }
+  }
+}

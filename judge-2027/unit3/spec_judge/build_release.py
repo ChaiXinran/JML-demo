@@ -17,6 +17,7 @@ ENTRY_FILES = (
     "semantic_check.py", "semantic_judge.py", "validate_suite.py",
     "smt_counterexample.py", "requirements-smt.txt", "build_release.py",
     "run_tests.py", "test_semantic_judge.py", "test_cli.py", "test_hardening.py",
+    "test_2027_exercises.py",
     "README.md", "USAGE.md", "INTEGRATION.md", "TODO.md", "ON_MACHINE.md",
 )
 TREES = {

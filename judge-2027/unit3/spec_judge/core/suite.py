@@ -14,7 +14,7 @@ import json
 from pathlib import Path
 from typing import Any, Mapping
 
-from .profile import EvaluationProfile, ProfileError, Scenario
+from .profile import ArrayValue, EvaluationProfile, NO_RESULT, ProfileError, Scenario, typed_point_value
 
 
 @dataclasses.dataclass(frozen=True)
@@ -55,6 +55,18 @@ class SuiteProfile:
     suite_name: str
     suite_version: int
     guarantee_scope: str = "fixed_test_points"
+    result_type: str | None = None
+
+    @property
+    def extended_jml(self) -> bool:
+        return getattr(self.base, "extended_jml", False)
+
+    @property
+    def state_variables(self) -> Mapping[str, str]:
+        return self.base.state_variables_for(self.method) if self.extended_jml else {}
+
+    def state_name(self, name, state):
+        return self.base.state_name(name, state)
 
     @property
     def name(self) -> str:
@@ -378,6 +390,19 @@ def load_suite(
     if not isinstance(fixtures, dict) or not isinstance(points, list):
         raise ProfileError("points 文件中的 fixtures/points 类型错误")
     profile = profiles[profile_name]
+    extended = getattr(profile, "extended_jml", False)
+    result_type = config.get("result_type")
+    state_variables = profile.state_variables_for(method) if extended else {}
+    if extended:
+        supported_types = {"int", "bool", "int[]", "bool[]"}
+        if not isinstance(result_type, str) or result_type not in supported_types or set(parameters.values()) - supported_types:
+            raise ProfileError("数组 Suite 必须声明有效的参数和 result_type")
+        if solver_mode != "off":
+            raise ProfileError("数组与量词 Suite 只支持固定点，solver.mode 必须为 off")
+        if set(parameters) & set(state_variables):
+            raise ProfileError("方法参数不能与状态字段重名")
+    elif "result_type" in config:
+        raise ProfileError("当前 Profile 不支持 result_type")
     if not all(isinstance(name, str) and isinstance(value, dict) for name, value in fixtures.items()):
         raise ProfileError("fixtures 必须把字符串名称映射到状态对象")
     for fixture_name in fixtures:
@@ -410,6 +435,11 @@ def load_suite(
                 raise ProfileError(
                     f"测试点 {point_id} 的参数 {name} 不符合类型 {type_name}"
                 )
+        if ("result" in raw) != (extended and kind == "post"):
+            raise ProfileError(f"测试点 {point_id} 的 result 必须且只能在数组后态点提供")
+        reference_accepts = raw.get("reference_accepts")
+        if "reference_accepts" in raw and (kind != "post" or type(reference_accepts) is not bool):
+            raise ProfileError(f"测试点 {point_id} 的 reference_accepts 必须是后态点上的布尔值")
         weight = raw.get("weight", 1)
         public = raw.get("public", False)
         tags = raw.get("tags", [])
@@ -428,10 +458,22 @@ def load_suite(
                 post_data.state if isinstance(post_data, _GeneratedPost) else
                 _state(post_data, fixtures, profile, pre)
             )
+            if extended:
+                has_state = bool(state_variables)
+                if not all(isinstance(state, ArrayValue) == has_state for state in (pre, post)):
+                    raise ProfileError("观察点的状态字段与方法配置不符")
+                if has_state and kind == "post" and post_data.get("copy") != "pre":
+                    raise ProfileError("座位数组的后态必须显式使用 copy: pre")
+                arguments = {
+                    name: typed_point_value(value, parameters[name], f"arg.{name}")
+                    for name, value in arguments.items()
+                }
+            result = typed_point_value(raw["result"], result_type, "result") if "result" in raw else NO_RESULT
         except (ProfileError, TypeError, ValueError) as error:
             raise ProfileError(f"测试点 {point_id} 的状态无效：{error}") from error
         scenario = Scenario(
-            pre, post, dict(arguments), point_id, float(weight), public, tuple(tags)
+            pre, post, dict(arguments), point_id, float(weight), public, tuple(tags),
+            result, reference_accepts,
         )
         target = pre_points if kind == "pre" else post_points
         duplicate = next((
@@ -439,6 +481,7 @@ def load_suite(
             if existing.pre == scenario.pre
             and existing.post == scenario.post
             and existing.arguments == scenario.arguments
+            and existing.result == scenario.result
         ), None)
         if duplicate is not None:
             raise ProfileError(
@@ -451,6 +494,7 @@ def load_suite(
     bound = SuiteProfile(
         profile, method, tuple(pre_points), tuple(post_points), dict(contract_shape),
         dict(parameters), dict(grading), dict(diagnostics), dict(solver), suite_name, version,
+        result_type=result_type,
     )
     return LoadedSuite(
         name=suite_name,

@@ -24,7 +24,7 @@
 3. **新方法或新类，状态是一个整数，JML 只查询 `getValue()`**：可继续用 `counter_v1`，见第 7 节。
 4. **全新领域状态或新的 JML 查询**：除了上述文件，还必须实现或扩展 Profile，见第 8 节。仅写 JSON 格式的测试点无法让评测器理解未知的查询方法。
 
-本次上机候选版本的正式评测范围限定为仓库中已有的五个 Suite 和 `network_v1`、`counter_v1` 两个 Profile。第 6～8 节保留详细维护示例；新方法／新 Profile 属于后续开发，不在本次包的已支持范围。当前也不扩展量词、`\result` 或完整 JML 语义。
+新版三道独立 JML 题使用 `array_v1`，操作见[三题评测与测试点](#array-exercises)。下文以 `followUser` 演示原有 Profile 的维护。
 
 ### 0.1 CLI 提交格式
 
@@ -34,7 +34,7 @@
 python3 semantic_check.py SUBMISSION --suite SUITE --json
 ```
 
-`SUBMISSION` 可以是 UTF-8 `.java` 或 `.jml` 文件，也可以写 `-` 从标准输入读取。文件内容必须包含唯一的 Suite 目标方法声明，以及归属于该声明的唯一、完整 `/*@ ... @*/` JML 合同块。合同块与方法声明之间允许夹普通注释；合同块内部的普通注释不保证支持。参数名称和 Java 类型必须匹配 Suite；返回类型、是否 `static` 和 `throws` 集合必须匹配参考方法声明。`safe`／`pure` 声明标记可以保留。重复/重载目标方法、多个相邻合同块、未完成行为或未知条款（例如 `signals_only`、`invariant`、`model`）都会报学生规格错误，不会被忽略。只有 JML 子句而没有方法声明的 sidecar 不符合输入约定；`.jml` 扩展名也不表示支持完整 OpenJML sidecar 语法。源码识别只覆盖本组件需要的受限格式，不是完整 Java 解析器；评测器不编译或运行 Java。
+`SUBMISSION` 可以是 UTF-8 `.java` 或 `.jml` 文件，也可以写 `-` 从标准输入读取。文件内容必须包含唯一的 Suite 目标方法声明，以及归属于该声明的唯一、完整 `/*@ ... @*/` 合同块。数组 Suite 也接受连续的 `//@` 合同行。合同块与方法声明之间允许夹普通注释；合同块内部的普通注释不保证支持。参数名称和 Java 类型必须匹配 Suite；返回类型、是否 `static` 和 `throws` 集合必须匹配参考方法声明。`safe`／`pure` 声明标记可以保留。重复/重载目标方法、多个相邻合同块、未完成行为或未知条款（例如 `invariant`、`model`）都会报学生规格错误，不会被忽略。只有 JML 子句而没有方法声明的 sidecar 不符合输入约定；`.jml` 扩展名也不表示支持完整 OpenJML sidecar 语法。源码识别只覆盖本组件需要的受限格式，不是完整 Java 解析器；评测器不编译或运行 Java。
 
 正常 JSON 结果带 `schema_version: 1`、`status: "PASS"` 或 `"FAIL"`，以及兼容的 `score`、`passed`、`diagnostics` 字段。`coverage`、`evaluation` 和 `solver` 可能缺省；例如学生格式或编码错误会产生分数和诊断，但没有完整覆盖统计或求解器结果。退出码 `0` 表示 PASS，`1` 表示 FAIL。提交文件 IO、参数或 Suite 配置错误退出码为 `2`，JSON 使用 `status: "ERROR"` 且不包含 `score`、`passed`；详细错误写入标准错误。评测机应把 ERROR 视作评测配置/输入错误，不能当作学生零分。
 
@@ -466,3 +466,40 @@ python3 semantic_check.py - \
 当前最省事的路径是“复制相近 Suite 的**文件结构**，审核并重写参考 JML 与点集，再跑验证”。不要直接照搬测试点的语义。现在的加载器已支持不同方法名、不同参数、不同合同子句数量和多种 Profile，但新方法仍需手工建立三个文件；新领域还需写代码和注册。后续可以考虑开发 `new_suite` 脚手架，按所选 Profile 自动生成参考文件占位、Suite、Points 模板，并在创建时调用校验器；也可让校验器打印每个点被参考 JML 接受／拒绝的摘要，辅助选点。**这些只是优化建议，本次没有实现。**
 
 另外，本评测器只支持主 [README](README.md) 所述的 JML 子集，不是完整 JML。固定点通过只表示在当前测试点上与参考 JML 一致；可选 SMT 也只覆盖当前可建模的子集。部署前仍要由你审核参考规格、状态抽象和测试点覆盖是否符合题意。
+
+
+<a id="array-exercises"></a>
+
+## 2027 三道独立 JML 题
+
+学生将规格写在项目的 `JML/JML.java`。评测端根据周次选择对应的 Suite，保留指导书给出的方法签名与参数名。进入 `judge-2027/unit3/spec_judge/` 后，把下面的 `/path/to/submission` 换成实际提交目录，按周次执行其中一条：
+
+```sh
+python3 semantic_check.py /path/to/submission/JML/JML.java --suite suites/JML/firstDuplicateIndex/suite.yaml --json
+python3 semantic_check.py /path/to/submission/JML/JML.java --suite suites/JML/reserveSeats/suite.yaml --json
+python3 semantic_check.py /path/to/submission/JML/JML.java --suite suites/JML/longestFreeBlock/suite.yaml --json
+```
+
+三题都接受紧邻目标方法的单个 `/*@ ... @*/` 块或连续 `//@` 行。HW9 可以保留题面给的行注释写法。HW10 的字段 `occupied` 由观察点提供，评测器不会执行学生字段的初始化代码。
+
+- 表达式支持一维 `int[]`、`boolean[]`、`null`、数组下标和 `.length`，以及用数学整数求值的 `+`、`-`。数组之间的 `==` 比较引用身份。用 `\old(occupied[i])` 读取旧元素，用 `occupied == \old(occupied)` 判断字段是否仍引用原数组。
+- `\result` 只在 `ensures` 中可用，不能放在 `\old` 内。支持短路蕴含 `==>` 和等价 `<==>`。
+- 量词支持写成 `(\forall int i; 范围; 条件)`、`\exists` 和 `\num_of`，以及多变量和嵌套。范围中用合取的整数比较给每个变量提供可推导的有限上下界，例如 `0 <= i && i < j && j < ids.length`。边界推导支持整数加减法移项，例如也可写 `i + 1 <= j`，或用 `start + length <= occupied.length` 约束区间终点。空范围的全称为真，存在为假，计数为零。求值有总运算预算，超限或无法求值会给出学生规格诊断。
+- `signals_only` 比较明确允许的异常类型。数组 frame 支持 `\nothing`、`\everything`、字段以及 `occupied[i]`、`occupied[*]`、`occupied[start .. end]` 等位置，区间端点包含在内。评测器在前态上求出允许写入的槽位，并用后态检查实际可观察的变化。
+- 三题只做固定点评测，结论覆盖的是已配置的输入和候选结果。无需 Z3，也不编译学生代码。
+
+给三题补点时，编辑相应方法目录的 `points.yaml`。查询题的数组输入直接写在 `args`，`pre` 与 `post` 写 `{}`；预订题的座位状态放在 `pre.occupied`，`post` 用 `"copy": "pre"`，覆盖 `occupied` 可改变元素，附加 `"fresh": true` 表示换了数组引用。数组后态点必须提供 `result`，类型由 `suite.yaml` 的 `result_type` 声明。可以用 `reference_accepts` 标明供预检核对的参考结论，学生评分仍使用参考规格的实际求值。例如原数组正确更新却返回 `false`：
+
+```json
+{
+  "id": "updated_but_returns_false",
+  "kind": "post",
+  "args": {"start": 1, "count": 2},
+  "pre": {"occupied": [true, false, false, true]},
+  "post": {"copy": "pre", "occupied": [true, true, true, true]},
+  "result": false,
+  "reference_accepts": false
+}
+```
+
+增改后运行 `python3 validate_suite.py suites/JML/reserveSeats/suite.yaml`，对应替换其他方法名。当前审核过的等价变异包括：HW9 的第二条后置条件可推出「无重复只能返回 `-1`」；HW10 的区间 frame 已禁止替换字段引用；HW11 的第一条非空座位分支后置条件已约束返回数组非空且长度为 2。这些豁免与确切变异源码哈希绑定。
