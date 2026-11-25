@@ -1,6 +1,6 @@
 # JML 一致性评测
 
-第一次添加测试点或新方法，请先看 [手把手使用说明](USAGE.md)；它提供完整的文件示例、逐步命令与排错顺序。
+给 HW9、HW10、HW11 增加测试点，请直接看[三道独立 JML 题的加点步骤](USAGE.md#add-array-points)。其他 Profile 的维护和新增方法见[手把手使用说明](USAGE.md)。
 
 本目录维护一个独立的 JML–JML 评测器组件。正式入口 `semantic_check.py` 在 suite 声明的抽象状态上比较参考 JML 与学生提交中的 JML，不编译或运行学生 Java，也不调用 Web、Java 或 OpenJML。学生可提交 UTF-8 的 `.java` 或 `.jml` 源文本；两种格式都必须包含唯一目标方法声明，以及归属于该声明的 JML 合同。合同块与方法声明之间允许夹有普通注释；合同块内部的普通注释不保证支持。这里的 `.jml` 只是接受的文件扩展名，不表示支持完整 OpenJML sidecar 文件格式。源码识别只覆盖本组件所需的受限格式，不是完整 Java 解析器。Web、Java 实现和 OpenJML 验证由协作者维护，和本组件的 JML–JML 评测分别接入。`consistency_judge.py`、`runtime_verifier.py`、`verification_evidence.py` 及其历史测试和 Java 示例暂留目录中供兼容，不属于本轮维护范围，也不进入独立发布包；`spec_judge.py` 是早期原型。
 
@@ -16,11 +16,11 @@
 
 新版指导书中的三道独立题使用 `array_v1`，每周读取提交项目的 `JML/JML.java`。
 
-| 周次 | 题目 | Suite |
-| --- | --- | --- |
-| HW9 | 自习室签到记录 `firstDuplicateIndex` | [suite.yaml](suites/JML/firstDuplicateIndex/suite.yaml) |
-| HW10 | 实验室座位预订 `reserveSeats` | [suite.yaml](suites/JML/reserveSeats/suite.yaml) |
-| HW11 | 自习室连座查询 `longestFreeBlock` | [suite.yaml](suites/JML/longestFreeBlock/suite.yaml) |
+| 周次 | 题目 | Suite | 前态点 | 后态点 |
+| --- | --- | --- | ---: | ---: |
+| HW9 | 自习室签到记录 `firstDuplicateIndex` | [suite.yaml](suites/JML/firstDuplicateIndex/suite.yaml) | 8 | 17 |
+| HW10 | 实验室座位预订 `reserveSeats` | [suite.yaml](suites/JML/reserveSeats/suite.yaml) | 16 | 16 |
+| HW11 | 自习室连座查询 `longestFreeBlock` | [suite.yaml](suites/JML/longestFreeBlock/suite.yaml) | 7 | 21 |
 
 三题使用固定观察点，开启对数组、返回值、有限范围量词、异常类型集合和数组 frame 的支持。原有五个 Suite 仍用原来的子集和配置。参见[三题命令与点集说明](USAGE.md#array-exercises)。
 
@@ -115,7 +115,7 @@ cat tests/fixtures/followUser/wrong-relation-direction.java | \
 5. 在相同测试点上分别计算参考子句和学生子句。
 6. 真值不一致时产生确定性诊断，并按“区域权重 × 测试点通过比例”计分。
 
-参考 JML 是 oracle；测试点不保存答案，也不要求学生文本与参考文本相同。
+参考 JML 提供判定依据，评测器比较语义而非文本。数组后态点的 `result` 是候选返回值，`reference_accepts` 用来核对参考 JML 的判定。
 
 ## 4. Suite 文件
 
@@ -182,6 +182,8 @@ cat tests/fixtures/followUser/wrong-relation-direction.java | \
 输出的 `candidate_points` 已是 points schema 的形状，但不会自动写文件。先人工检查其领域含义，再复制到 points 文件并运行 `validate_suite.py`；这种显式步骤可避免把不完整符号模型直接变成正式隐藏点。此命令是维护工具，不应暴露给学生端。
 
 ## 5. 添加测试点
+
+下文用 `network_v1` 说明字段含义。给现有点集加点时，请使用[可直接复制的 `followUser` 示例](USAGE.md#add-network-points)或[数组题加点步骤](USAGE.md#add-array-points)。数组题需要填写候选返回值，座位预订题还要区分修改同一数组和替换数组引用。
 
 ### 5.1 前态测试点
 
@@ -282,7 +284,7 @@ python3 run_tests.py
     "mode": "exhaustive",
     "kind": "post",
     "args": {"id1": [1, 2], "id2": [2, 3]},
-    "pre": [{"use": "empty"}, {"use": "both"}],
+    "pre": [{"use": "empty"}, {"use": "two_users"}],
     "post": [{"copy": "pre"}]
   }
 ]

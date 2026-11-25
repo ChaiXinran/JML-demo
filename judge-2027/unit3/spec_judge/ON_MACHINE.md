@@ -1,6 +1,6 @@
 # 2026-11-03 上机操作（候选版本）
 
-本页记录 2026-11-03 的候选包与检查步骤。新版三道独立题的命令见 [USAGE.md](USAGE.md#array-exercises)。它不是实机验收报告：只有在目标机实际执行并记录结果后，才可标记验收完成。正式范围是现有五个 Suite、两个 Profile（`network_v1`、`counter_v1`）；固定点结果不代表完整 JML 或无限状态空间的证明。
+本页记录 2026-11-03 候选包的五个 Suite、两个 Profile（`network_v1`、`counter_v1`）和相应检查步骤。使用当前源码构建的版本时，按 [INTEGRATION.md](INTEGRATION.md) 验收，并测试[三道独立题](USAGE.md#array-exercises)。目标机实际执行并记录结果后，才算完成实机验收。
 
 ## 1. 准备发布包与 Python
 

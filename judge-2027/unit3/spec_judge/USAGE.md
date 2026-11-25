@@ -2,6 +2,10 @@
 
 这份说明面向第一次维护 JML–JML 评测器的人。按顺序做即可；不需要先理解求解器或评测核心源码。本文只讲评测机组件中的参考 JML、学生提交和测试集。学生 Java 实现的运行验证、OpenJML 和 Web 练习由协作者分别维护，不是本组件的输入依赖。
 
+- **给 HW9、HW10、HW11 补测试点**：直接看[三道独立 JML 题的加点步骤](#add-array-points)。提交路径和 CLI 命令见[三题评测入口](#array-exercises)。
+- **给旧网络题补点**：看[前态点](#3-给-followuser-手工增加一个前态点)和[前后态点](#4-给-followuser-手工增加一个前后态点)。
+- **增加新方法或新领域**：看下文第 6～8 节。
+
 ## 0. 先弄清楚要改什么
 
 一次评测由四样东西组成：
@@ -10,7 +14,7 @@
 | ------- | ---------------------------------------------------------------- | ----------------------------------------------------- |
 | 参考源  | 方法声明前写着经审核的参考 JML；它是判定依据                     | `suites/NetworkInterface/followUser/reference.java` |
 | Suite   | 指定方法、Profile、参考文件、测试点文件和评分设置                | `suites/NetworkInterface/followUser/suite.yaml`     |
-| Points  | 列出输入参数、调用前状态、候选调用后状态；**不写标准答案** | `suites/NetworkInterface/followUser/points.yaml`    |
+| Points  | 列出输入参数、调用前状态、候选后态与需要检验的候选返回值 | `suites/NetworkInterface/followUser/points.yaml`    |
 | Profile | 解释状态字段及 JML 中的方法调用，例如 `containsUser(1)` 的含义 | `profiles/network_v1/profile.py`                    |
 
 下文所有相对路径，除非特别说明，均以 `judge-2027/unit3/spec_judge/` 为当前目录。Suite 里的 `reference` 和 `points` 路径则**相对于 Suite 文件所在目录**，不是相对于运行命令的目录。`followUser` 的权威参考源已收在其方法目录中，正式 suite 不依赖 `Agent/`。
@@ -66,7 +70,7 @@ PYTHONDONTWRITEBYTECODE=1 python3 validate_suite.py suites/NetworkInterface/foll
 应看到 `"valid": true`、`"profile": "network_v1"`、`"method": "followUser"`，以及前态数、后态数和变异测试结果。再用参考文件充当“学生提交”，确认评测入口可用：
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 python3 _semantic_check.py \
+PYTHONDONTWRITEBYTECODE=1 python3 semantic_check.py \
   suites/NetworkInterface/followUser/reference.java \
   --suite suites/NetworkInterface/followUser/suite.yaml --json
 ```
@@ -79,12 +83,12 @@ PYTHONDONTWRITEBYTECODE=1 python3 _semantic_check.py \
 
 - `args`：调用方法时传入的参数。例如 `{"id1": 1, "id2": 2}`。键名必须和 Suite 的 `parameters` 完全一致；无参数方法写 `{}`。
 - `pre`：调用方法**之前**的状态。`requires` 和本项目受限语义下的 `signals` 在这里求值。
-- `kind: "pre"`：只检查正常行为是否适用、哪些异常条件成立；不需要 `post`。
+- `kind: "pre"`：比较正常行为的适用条件、异常分支和有效的可修改范围。省略 `post` 和 `result`。
 - `kind: "post"`：还必须给出 `post`，即一个**候选**调用后状态，用于比较双方 `ensures` 是否接受该状态。它可以故意不正确，正是为了测出漏写或写错的后置条件。
 
-评测器在同一个点上分别运行参考 JML 和学生 JML：两者同意时该点通过，不同意时该点发现语义差异。因此，**不要在 Points 文件里增加 `expected`、`should_pass` 一类答案字段**。测试点也不会自动证明整个无限状态空间上的等价。
+评测器在同一个点上分别求值参考 JML 和学生 JML：两者同意时该点通过，不同意时该点发现语义差异。数组题的 `result` 是拿来检验的候选返回值，可以故意写错。可选的 `reference_accepts` 用来核对参考 JML 是否按题意接受或拒绝这个候选。评分依据仍来自参考 JML。有限测试点只比较已列出的情形，详见[三题加点步骤](#add-array-points)。
 
-`assignable` 当前只在支持的 store-ref 子集中比较参考与学生合同的有效 frame，不会依据这里的前后态检查“实际 Java 是否只修改了允许的字段”。
+原有网络和计数题比较合同声明的有效 frame。数组题还用 frame 检查候选后态的可观察变化。这里的 frame 是允许写入的位置范围，整个过程不运行 Java 方法体。
 
 网络 Profile 的状态字段如下：
 
@@ -98,6 +102,8 @@ PYTHONDONTWRITEBYTECODE=1 python3 _semantic_check.py \
 ```
 
 这表示用户 1 关注用户 2，所以 `following` 边是 `[1, 2]`；用户 2 的粉丝包括用户 1，所以 `followers` 边是 `[2, 1]`。两张表的方向相反，最容易填错。`blocked` 的边 `[a, b]` 表示用户 `a` 屏蔽 `b`。关系端点都必须出现在 `users` 中。只有测试点需要的字段才必须写；省略的网络关系默认为空。**加载器不会替你从 `following` 自动推导 `followers`**，需要测试双向一致时应明确写两边。
+
+<a id="add-network-points"></a>
 
 ## 3. 给 `followUser` 手工增加一个前态点
 
@@ -133,7 +139,7 @@ PYTHONDONTWRITEBYTECODE=1 python3 validate_suite.py suites/NetworkInterface/foll
 
 ## 4. 给 `followUser` 手工增加一个前后态点
 
-继续测上面的前态中，调用成功后是否同时保留原有反向关注，并增加新的正向关注：
+继续用上面的前态，检查已有反向关注时，参考和学生规格是否都接受新增正向关注及对应粉丝记录的后态：
 
 1. 仍打开同一个 `followUser/points.yaml`。
 2. 在 `"points"` 数组中再加入下面这个对象，并按 JSON 规则处理前一个对象后的逗号：
@@ -160,7 +166,7 @@ PYTHONDONTWRITEBYTECODE=1 python3 validate_suite.py suites/NetworkInterface/foll
 
 `"copy": "pre"` 表示先复制该点的前态，再应用 `add`。所以原有的 `[2, 1]` 仍存在。`remove` 可以删除关系；例如 `"remove": {"following": [[1, 2]]}`。`users`、`following`、`followers`、`blocked` 直接出现在状态对象里时是**覆盖对应字段**，不是追加。尤其直接重写 `users` 会重置关系表；表示状态变化时通常优先使用 `"copy": "pre"` 加 `add`/`remove`。
 
-这个 `post` 是参考 JML 应当接受的成功候选。要测“只更新关注、不更新粉丝”的错误候选，另建一个 `post` 点，仅把 `add` 改为 `{"following": [[1, 2]]}`；**仍然不写预期值**，由参考 JML 自动拒绝。不要把同一组 `args`、`pre`、`post` 重复加入：即使 ID 不同，加载器也会报 `重复 observation`。
+这个 `post` 是参考 JML 应当接受的成功候选。候选保留了原有反向关系，但当前参考 JML 只约束新增的关注和粉丝记录。若要评测是否禁止删除原有反向关系，需先确认题意并在参考 JML 中加上相应约束，再增加一个删除反向关系的错误候选。要测“只更新关注、不更新粉丝”，可以复制上面的点，换一个 `id`，把 `add` 改为 `{"following": [[1, 2]]}`；此时参考 JML 会拒绝这个候选。即使 ID 不同，重复加入同一组 `args`、`pre`、`post` 也会报 `重复 observation`。
 
 再次运行第 3 节的两条检查命令。还应重跑一次第 1 节的参考自评命令，确认 `passed: true`。
 
@@ -187,7 +193,7 @@ PYTHONDONTWRITEBYTECODE=1 python3 validate_suite.py suites/NetworkInterface/foll
   "id": "new_pre_grid",
   "mode": "exhaustive",
   "kind": "pre",
-  "args": {"id1": [1, 2], "id2": [1, 2]},
+  "args": {"id1": [1, 3], "id2": [1, 4]},
   "pre": [{"use": "two_users"}]
 }
 ```
@@ -444,7 +450,7 @@ python3 semantic_check.py - \
 
 ### 9.5 更新测试集并重新发布
 
-给已有方法加点时，只改该方法 `points.yaml` 的 `points` 或 `generators`，不要在 Points 中写标准真假答案；先运行 `validate_suite.py`，再运行 `python3 run_tests.py`，最后重新构建评测 ZIP。调整参考 JML 或评分策略时，也要复核该方法的正反例和质量检查。新方法新建自己的 suite 目录，沿用已有 Profile 或先完成 Profile 扩展，具体步骤仍见第 6～8 节。
+给已有方法加点，修改对应的 `points.yaml`。数组后态点逐条写在 `points` 中，并填写候选 `result`。先执行[加点后的正反例检查](#check-array-points)，再运行 `python3 run_tests.py` 并重新构建评测 ZIP。调整参考 JML 或评分策略时，也要复核该方法的正反例和质量检查。新增方法的做法见第 6～8 节。
 
 发布包是评测机组件，不是学生练习包。Web 页面、课程题面、学生 Java 实现及 JML–Java/OpenJML 验证由协作者按其接口维护；不要把这些流程或依赖加入本组件的 Suite 或发布脚本。
 
@@ -453,12 +459,12 @@ python3 semantic_check.py - \
 1. `json.tool` 失败：先检查双引号、逗号、花括号；文件虽然叫 `.yaml`，现在用的是 JSON 兼容语法。
 2. `reference 或 points 文件不存在`：路径相对于 Suite 文件目录，不是终端当前目录。
 3. `未知 profile`：检查 Suite 的 `profile` 名称以及 `profiles/registry.py`。
-4. `未找到方法`／`未找到紧邻方法的 JML 注释块`：参考源或学生 `.java`／`.jml` 中的方法名要与 Suite 一致，JML 须用唯一完整的 `/*@ ... @*/` 块归属目标声明。合同块与声明之间可夹普通注释，块内普通注释不保证支持。
+4. `未找到方法`／`未找到紧邻方法的 JML 注释块`：核对源文件中的方法名和合同位置。原有 Suite 接受一个完整的 `/*@ ... @*/` 合同块。数组 Suite 也接受连续的 `//@` 合同行。
 5. `未定义的变量`／`不允许调用接口外函数`：检查 Suite 的 `parameters` 及 Profile 的 `allowed_calls`、`symbols`；不要在 JML 中使用尚未实现的查询。
 6. `参数必须恰好是 ...`：每个点的 `args` 键名必须与 Suite 的 `parameters` 一模一样，包括无参数时的 `{}`。
 7. `未知 fixture`／`fixture 出现循环引用`：检查 `use` 名称和引用链。
 8. `关系的端点必须出现在 users 中`：检查网络状态的 `users` 是否包含每条边的两个端点。
-9. `重复 observation`：检查是否有两个相同参数、前态和后态的同类点；换 ID 不能解决，需删去或改成有区分度的情形。
+9. `重复 observation`：同类点如果参数、前态、后态和候选返回值全部相同，就是重复点。仅改 ID、权重或 `reference_accepts` 仍算重复。
 10. 参考自评 100，但错误 JML 也 100：这不是配置成功的充分证明。检查错误是否真的改变所选点上的真值；补覆盖该错误的前态／候选后态，观察 `mutations.survivors` 是否减少。
 
 ## 11. 当前范围与可进一步简化之处
@@ -488,18 +494,145 @@ python3 semantic_check.py /path/to/submission/JML/JML.java --suite suites/JML/lo
 - `signals_only` 比较明确允许的异常类型。数组 frame 支持 `\nothing`、`\everything`、字段以及 `occupied[i]`、`occupied[*]`、`occupied[start .. end]` 等位置，区间端点包含在内。评测器在前态上求出允许写入的槽位，并用后态检查实际可观察的变化。
 - 三题只做固定点评测，结论覆盖的是已配置的输入和候选结果。无需 Z3，也不编译学生代码。
 
-给三题补点时，编辑相应方法目录的 `points.yaml`。查询题的数组输入直接写在 `args`，`pre` 与 `post` 写 `{}`；预订题的座位状态放在 `pre.occupied`，`post` 用 `"copy": "pre"`，覆盖 `occupied` 可改变元素，附加 `"fresh": true` 表示换了数组引用。数组后态点必须提供 `result`，类型由 `suite.yaml` 的 `result_type` 声明。可以用 `reference_accepts` 标明供预检核对的参考结论，学生评分仍使用参考规格的实际求值。例如原数组正确更新却返回 `false`：
+<a id="add-array-points"></a>
+
+### 第一步：找到这一题的 points.yaml
+
+| 周次 | 要编辑的文件 | 数组写在哪里 | 后态点的 `result` |
+| --- | --- | --- | --- |
+| HW9 首个重复下标 | [firstDuplicateIndex/points.yaml](suites/JML/firstDuplicateIndex/points.yaml) | `args.ids`，整数数组 | 整数，如 `2` 或 `-1` |
+| HW10 座位预订 | [reserveSeats/points.yaml](suites/JML/reserveSeats/points.yaml) | `pre.occupied`，布尔数组 | `true` 或 `false` |
+| HW11 最长连续空座 | [longestFreeBlock/points.yaml](suites/JML/longestFreeBlock/points.yaml) | `args.occupied`，布尔数组 | 整数数组，如 `[1, 2]` 或 `[]` |
+
+打开文件，找到顶层 `"points": [`。把新点加在这个数组的最后一个 `]` 之前。前一个对象后加逗号，新数组的最后一个对象后不留逗号。下方的 JSON 围栏只是展示格式，复制时只复制其中的内容。文件扩展名虽然是 `.yaml`，内容要按 JSON 写，包括双引号和小写 `true`、`false`、`null`。
+
+每个点都需要唯一的 `id`、`kind`、`args` 和 `pre`。已有题补点通常只改这个文件。数组后态点手写在 `points` 内，旧网络题的后态生成器不会为它们生成 `result`。
+
+### 第二步：写出能区分正误的情形
+
+先想清楚要抓哪种错解。漏掉异常分支、把合法输入排除在外，或写错允许修改的范围，用 `pre` 点。正确输入上给错返回值、漏改元素、改了区间外元素，用 `post` 点。如果同一个输入既要检查能不能调用，又要检查返回结果，可以分别加一个前态点和一个后态点。
+
+- **前态点**带 `args` 和 `pre`。评测器在前态上比较正常行为是否适用、允许哪些异常和哪些位置可写。省略 `post`、`result` 和 `reference_accepts`。例如要检查 HW10 越界是否只允许 `IllegalArgumentException`，这里无需伪造返回值。
+- **数组后态点**另带 `post` 和 `result`。它们描述一个候选正常返回，包括故意错误的返回值或状态。查询题没有对象状态变化，`pre` 和 `post` 均写 `{}`。预订题要写座位前态和候选后态。
+- **`reference_accepts` 建议给数组后态点填写**。正确候选写 `true`，错误候选写 `false`。预检和实际评测会核对参考 JML 的判定，写反时会报配置错误。学生规格和参考规格都拒绝同一个错误候选，该点就通过。把字段改成 `true` 不会把错解变成正确答案。
+
+数组最多 64 个元素。整数按 Java `int` 取值，布尔值直接写 `true` / `false`。查询题可以把 `null` 写在数组参数处以测试非空前置条件，也可为 HW11 写 `"result": null` 测试拒绝空引用返回。HW10 的 `pre.occupied` 必须是非空引用的布尔数组，允许长度为零的 `[]`。
+
+#### HW9：同一组签到记录，分别给正确和错误下标
+
+对 `[4, 9, 9, 4]`，第一次重复发生在下标 2，返回 3 则是选了后一条重复记录。把下面两个对象一起加入 HW9 的 `points` 数组：
 
 ```json
 {
-  "id": "updated_but_returns_false",
+  "id": "duplicate_two_different_values_first",
   "kind": "post",
-  "args": {"start": 1, "count": 2},
-  "pre": {"occupied": [true, false, false, true]},
-  "post": {"copy": "pre", "occupied": [true, true, true, true]},
-  "result": false,
+  "args": {"ids": [4, 9, 9, 4]},
+  "pre": {},
+  "post": {},
+  "result": 2,
+  "reference_accepts": true
+},
+{
+  "id": "duplicate_two_different_values_later",
+  "kind": "post",
+  "args": {"ids": [4, 9, 9, 4]},
+  "pre": {},
+  "post": {},
+  "result": 3,
   "reference_accepts": false
 }
 ```
 
-增改后运行 `python3 validate_suite.py suites/JML/reserveSeats/suite.yaml`，对应替换其他方法名。当前审核过的等价变异包括：HW9 的第二条后置条件可推出「无重复只能返回 `-1`」；HW10 的区间 frame 已禁止替换字段引用；HW11 的第一条非空座位分支后置条件已约束返回数组非空且长度为 2。这些豁免与确切变异源码哈希绑定。
+这两点的输入和前后态相同，但候选返回值不同，因此不是重复点。只换 `id`、权重或参考判定标记则没有增加新的观察。
+
+#### HW10：写出座位前后态，再指定返回值
+
+预订下标 2 到 5 共四个空座，成功后这四格应变为 `true`。第一个后态点是正确候选。第二个点保持相同的成功返回值，故意多改下标 6。第三个点把请求换成从下标 6 开始预订两个座位，用来检查异常分支。
+
+```json
+{
+  "id": "reserve_four_seats_success",
+  "kind": "post",
+  "args": {"start": 2, "count": 4},
+  "pre": {"occupied": [false, true, false, false, false, false, false]},
+  "post": {"copy": "pre", "occupied": [false, true, true, true, true, true, false]},
+  "result": true,
+  "reference_accepts": true
+},
+{
+  "id": "reserve_four_seats_touches_extra_seat",
+  "kind": "post",
+  "args": {"start": 2, "count": 4},
+  "pre": {"occupied": [false, true, false, false, false, false, false]},
+  "post": {"copy": "pre", "occupied": [false, true, true, true, true, true, true]},
+  "result": true,
+  "reference_accepts": false
+},
+{
+  "id": "reserve_past_last_seat",
+  "kind": "pre",
+  "args": {"start": 6, "count": 2},
+  "pre": {"occupied": [false, true, false, false, false, false, false]}
+}
+```
+
+在 HW10 中，`"post": {"copy": "pre"}` 表示仍引用原数组且内容保持原样，适合构造预订冲突、返回 `false` 的正确候选。加上 `occupied` 则填写整份候选后态数组，长度应与前态一致。若想专门测出「把数组换成新对象」，在 `post` 里同时保留 `"copy": "pre"`、写出 `occupied`，再加 `"fresh": true`。即使元素相同，引用也发生了变化，应将该候选的 `reference_accepts` 写为 `false`。还可以复制四座成功点，把新点的 `result` 改为 `false`，验证「座位改对了但返回值写反」能被识别。
+
+#### HW11：同时检验正确区间和并列错解
+
+`[true, false, false, true, false, false]` 有两个长度为 2 的空座区间。正确返回 `[1, 2]`，选择较晚的 `[4, 2]` 应被拒绝。
+
+```json
+{
+  "id": "longest_equal_runs_choose_first",
+  "kind": "post",
+  "args": {"occupied": [true, false, false, true, false, false]},
+  "pre": {},
+  "post": {},
+  "result": [1, 2],
+  "reference_accepts": true
+},
+{
+  "id": "longest_equal_runs_reject_later",
+  "kind": "post",
+  "args": {"occupied": [true, false, false, true, false, false]},
+  "pre": {},
+  "post": {},
+  "result": [4, 2],
+  "reference_accepts": false
+}
+```
+
+还可测试空数组、全部占用、只有一段空座，以及结果数组太长或太短。无空座时的正确结果是 `[]`。
+
+<a id="check-array-points"></a>
+
+### 第三步：分别验证点集、标准答案和错解
+
+以下以 HW10 为例。在仓库根目录先进入 `judge-2027/unit3/spec_judge`。如果改的是 HW9 或 HW11，把命令中的 `reserveSeats` 换成上表的方法名。PowerShell 下可把 `python3` 换成 `python`。
+
+```sh
+python3 -m json.tool suites/JML/reserveSeats/points.yaml
+python3 validate_suite.py suites/JML/reserveSeats/suite.yaml
+python3 semantic_check.py suites/JML/reserveSeats/reference.java --suite suites/JML/reserveSeats/suite.yaml --json
+```
+
+第一条检查 JSON。第二条检查重复点、数据类型和参考规格，并运行变异测试。确认它返回 `"valid": true`，`pre_points` 和 `post_points` 按实际新增数量变化，且这三题的 `effective_score` 为 100、`unexpected_survivors` 为空。第三条用参考文件自评，应得到 `PASS`、100 分、退出码 0。
+
+要复现加点前后的差异，先保留未加入示例的点集。把参考文件复制成一份临时提交：
+
+```sh
+cp suites/JML/reserveSeats/reference.java reserveSeats-wrong.java
+```
+
+PowerShell 可用 `Copy-Item suites/JML/reserveSeats/reference.java reserveSeats-wrong.java`。只在副本里将成功分支的 `ensures \result && occupied == \old(occupied);` 改成 `ensures \result && occupied == \old(occupied) && count <= 3;`。用同一条命令测两次，第一次用原点集，第二次在保存上面的三个 HW10 点后再测：
+
+```sh
+python3 semantic_check.py reserveSeats-wrong.java --suite suites/JML/reserveSeats/suite.yaml --json
+```
+
+如果旧点集只覆盖到三座，这份错解在加点前会得到 `PASS`。加入上面的四座成功点后应返回 `FAIL`、退出码 1，并包含 `POSTCONDITION_MISMATCH`。这里要看的是 **同一份错解有没有从通过变成失败**。如果错解两个版本都失败，换一份旧点集确实放过的错解再测，或检查预期失分区域是否新增了失败。测试完可移走临时错解文件。
+
+如果 `validate_suite.py` 提示「参考合同与观察点……自检判定不一致」，先用点的 `id` 找回该对象，按题意确认 `args`、前后态、返回值和标记。若报告已有的等价变异被新点识别或出现未知存活变异，按[等价变异审核步骤](#54-检查变异质量并审核等价项)复核。
+
+准备交付时，运行 `python3 run_tests.py` 并按[发布步骤](#93-构建和检查独立评测包)构建新 ZIP。需要对三周的 159 份模拟提交集中复测时，从完整仓库根目录执行 `python3 -B judge-2027/stress_2027/run.py`。脚本会生成新的结果目录，记录每份提交的预期、实际 JSON 和耗时。

@@ -24,7 +24,7 @@
 | `judge-2027/unit3/spec_judge/` | Profile + suite 驱动的 JML–JML 一致性评测器 | 服务器侧 |
 | `U3 GuideBook/` | 2026 单元指导书参考 | 课程组 |
 
-评测器已不只绑定 `followUser`：仓库内同时包含复用网络领域的新方法、新状态关系，以及独立 `Counter` 类/Profile 的示例。先看[评测器说明](judge-2027/unit3/spec_judge/README.md)了解能力与边界；第一次增加测试点或新方法，按[手把手使用说明](judge-2027/unit3/spec_judge/USAGE.md)操作。最短验证命令为：
+评测器当前有 8 个可用 Suite。原有 5 个使用 `network_v1` 或 `counter_v1`；指导书中的 HW9、HW10、HW11 三道独立 JML 题使用新增的 `array_v1`。先看[评测器说明](judge-2027/unit3/spec_judge/README.md)了解能力与边界；给三道数组题增加测试点，按[数组题加点步骤](judge-2027/unit3/spec_judge/USAGE.md#add-array-points)操作，三题的评测命令见[数组题入口](judge-2027/unit3/spec_judge/USAGE.md#array-exercises)。其他 Suite 的维护方式见[手把手使用说明](judge-2027/unit3/spec_judge/USAGE.md)。最短验证命令为：
 
 ```powershell
 Set-Location "judge-2027\unit3\spec_judge"
@@ -249,7 +249,7 @@ python -m hw9_agent publish-exercise `
 
 默认标题为“`<方法名> JML 填空练习`”；若需要自定义学生可见标题，可追加 `--title "..."`。目标目录已经存在时命令会停止，避免覆盖已发布的学生包或其中的演示样例。
 
-若此题需要在 Web 中运行 JML 一致性评测，在发布命令末尾追加 `--semantic-suite "../judge-2027/unit3/spec_judge/suites/NetworkInterface/followUser/suite.yaml"`（路径从 `Agent/` 出发）。命令会检查 Suite 与练习的方法名相同，自动写入 `exercise.json`；新方法从 Suite 到 Web 的完整流程见[手把手说明第 9 节](judge-2027/unit3/spec_judge/USAGE.md#9-把新方法接入-web-ui从-suite-到学生页面)。
+若此题需要在 Web 中运行 JML 一致性评测，在发布命令末尾追加 `--semantic-suite "../judge-2027/unit3/spec_judge/suites/NetworkInterface/followUser/suite.yaml"`（路径从 `Agent/` 出发）。命令会检查 Suite 与练习的方法名相同，自动写入 `exercise.json`；Web 练习的 Suite 配置步骤见 [Agent Web 说明](Agent/README.md#web-学习界面)。
 
 自动生成的 `exercise.json` 包含：方法名、占位符顺序、默认提示/讲解配置，以及从嵌入式 JML 提取的公开符号。助教无需手写它。若要提供演示样例，只需将 `.java` 文件放入 `samples/`；页面会自动识别，并以文件名生成展示名称，无需再修改配置。
 
@@ -408,9 +408,9 @@ python judge-2027/unit3/spec_judge/semantic_check.py `
 | `--suite` | 无 | 指向服务器端 suite；正式使用时由它锁定参考 JML、方法、Profile 与隐藏测试点。 |
 | `--json` | 关闭 | 输出供平台和 LLM 教学层使用的结构化诊断。 |
 
-`--reference` 和 `--method` 仅为旧兼容入口；使用 `--suite` 时不要同时传入。仓库当前有 `NetworkInterface.followUser`、`containsBoth`、`canInteract`、`unfollowUser` 和 `CounterInterface.checkNonNegative` 五个可用 Suite。新增同领域方法通常在 `suites/<类名>/<方法名>/` 新建参考 Java、`suite.yaml`、`points.yaml`；新增未知状态或 JML 查询才需要扩展 Profile。
+`--reference` 和 `--method` 仅为旧兼容入口；使用 `--suite` 时不要同时传入。仓库当前有 8 个可用 Suite：指导书 HW9 的 `JML.firstDuplicateIndex`、HW10 的 `JML.reserveSeats`、HW11 的 `JML.longestFreeBlock` 使用 `array_v1`；原有 `NetworkInterface.followUser`、`containsBoth`、`canInteract`、`unfollowUser` 使用 `network_v1`；`CounterInterface.checkNonNegative` 使用 `counter_v1`。新方法若沿用某个 Profile 已定义的状态和 JML 查询，可复用该 Profile；只有引入新状态或新查询时才需要扩展/增加 Profile。
 
-默认评分只表示在 suite 声明的固定/有限测试点上与参考 JML 一致，不证明全部可能状态下等价。可选 SMT 后端能在已建模的 JML 子集内审计或强制查找逻辑差异，但不能把本评测器变成完整 JML 编译器；例如当前不支持 `\result`、量词或完整 frame 语义。语法、加点步骤及覆盖范围见[评测器说明](judge-2027/unit3/spec_judge/README.md)和[手把手使用说明](judge-2027/unit3/spec_judge/USAGE.md)。学生只得到一次评分和脱敏诊断，不能获知参考 JML、隐藏点或求解器模型；Web 端的 LLM 只解释诊断，不参与判分。
+默认评分只表示在 Suite 声明的固定/有限测试点上与参考 JML 一致，不证明全部可能状态下等价。支持的语法由 Profile 决定：`array_v1` 为三道数组题支持一维 `int[]`/`boolean[]`、`\result`、带有限边界的量词和受限数组 frame；该 Profile 使用固定点，不调用 SMT。原有 `network_v1`、`counter_v1` 仍按各自 Profile 的查询与状态模型评测，不能把 `array_v1` 的语法支持视为所有 Profile 都支持。具体语法、加点步骤及覆盖范围见[评测器说明](judge-2027/unit3/spec_judge/README.md)、[数组题评测命令](judge-2027/unit3/spec_judge/USAGE.md#array-exercises)和[数组题加点步骤](judge-2027/unit3/spec_judge/USAGE.md#add-array-points)。学生只得到一次评分和脱敏诊断，不能获知参考 JML、隐藏点或求解器模型；Web 端的 LLM 只解释诊断，不参与判分。
 
 ## 13. 测试与发布前检查
 

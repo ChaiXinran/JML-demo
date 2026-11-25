@@ -4,7 +4,10 @@
 
 学生练习 Web 的二进制分发、Java 上传和 JML–Java / OpenJML 验证由协作者维护。学生的 Java 与 JML 可作为独立材料提交；评测机将 JML 文件交给本组件，将 Java 实现交给相应的实现评测链，分别记录结果。
 
+目前有 8 个可用 Suite。指导书中的 HW9 `JML.firstDuplicateIndex`、HW10 `JML.reserveSeats`、HW11 `JML.longestFreeBlock` 是新增的独立数组规格题，共用 `array_v1`；原有 4 个 `NetworkInterface` Suite 使用 `network_v1`，`CounterInterface.checkNonNegative` 使用 `counter_v1`。Profile 决定各 Suite 能解释的状态、查询和 JML 子集；数组题支持的语法不会自动扩展到旧 Profile。
+
 - [2027 指导书独立 JML 三题的评测命令](unit3/spec_judge/USAGE.md#array-exercises)
+- [给 HW9–HW11 数组题增加测试点](unit3/spec_judge/USAGE.md#add-array-points)
 - [独立 JML 三题的模拟提交压力测试](stress_2027/README.md)
 - [评测器能力与命令](unit3/spec_judge/README.md)
 - [逐步添加测试点、方法、类和 Profile](unit3/spec_judge/USAGE.md)

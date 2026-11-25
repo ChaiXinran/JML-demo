@@ -135,10 +135,12 @@ python3 semantic_check.py tests/fixtures/followUser/wrong-relation-direction.jav
 
 固定点模式只需 Python 3.10+ 标准库。启用 SMT 的评测机应安装 `requirements-smt.txt`；`required` 必须具备该依赖，`audit` 在缺失时报告 `UNAVAILABLE`。正式使用前按作业规模设置外层进程超时和资源预算。
 
-2026-11-03 上机候选包的操作清单见 [ON_MACHINE.md](ON_MACHINE.md)。该清单是待执行流程；只有在目标上机机完成并记录结果后，才可报告实机验收。
+当前版本上机时，除了上述旧题冒烟，还应对 HW9、HW10、HW11 的实际提交路径各跑一次正确和错误样例。Suite 与调用命令见[三题评测入口](USAGE.md#array-exercises)。[ON_MACHINE.md](ON_MACHINE.md) 里的点数和归档名对应 2026-11-03 候选包。目标机实际执行并记录结果后，才算完成实机验收。
 
 ## 4. 测试集变更
 
-新增方法或测试点只修改对应 Suite/Profile。完成 `validate_suite.py`、正确和错误提交验证、正式回归后重新生成发布包。Suite 的变异质量预检保留原始变异统计，并按 `quality.equivalent_mutations` 中的精确源码 UTF-8 SHA-256 标记人工审核的等价变异；源码哈希漂移、变异 ID 缺失或新测试点杀死已豁免变异时应停止发布并重新审核。最低变异分数按去除已审核等价项后的 `effective_score` 检查，不能通过放宽状态域凑分。评测机管理员将新包部署到新的版本目录，记录 ZIP 哈希，并为后续提交选择其中的 Suite。
+给已有方法补点，编辑该 Suite 指定的 `points.yaml`。数组题的返回值、座位数组状态和引用变化按[数组题加点步骤](USAGE.md#add-array-points)填写。先运行 `validate_suite.py`，再验证参考答案和触发补点的错解，最后跑正式回归并重建发布包。
+
+Suite 的变异质量预检保留原始变异统计，并按 `quality.equivalent_mutations` 中的精确源码 UTF-8 SHA-256 标记人工审核的等价变异。源码哈希漂移、变异 ID 缺失或新测试点识别出已豁免变异时，应重新审核。最低变异分数按去除已审核等价项后的 `effective_score` 检查。评测机管理员将新包部署到新的版本目录，记录 ZIP 哈希，并为后续提交选择对应的 Suite。
 
 已产生的成绩不会自动重算；是否重新评测历史提交由课程评测流程决定。参考合同和隐藏 Points 保留在评测端，不随学生练习工具的二进制分发。
